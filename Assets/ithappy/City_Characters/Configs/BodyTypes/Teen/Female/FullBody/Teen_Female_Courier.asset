@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Teen_Female_Courier
+  m_EditorClassIdentifier: 
+  BodyType: 4
+  Gender: 2
+  Slots:
+  - {fileID: -448532833045336951, guid: b080a16e663c4cfcb2923d5d48f954e2, type: 3}
+  - {fileID: 7009248398975023695, guid: 174e933fa7584b6ea432b86a4dd30eac, type: 3}
+  - {fileID: -681950754884785261, guid: 4dfaa94f486b457bb90903399a754577, type: 3}

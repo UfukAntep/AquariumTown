@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Hairstyle
+  m_EditorClassIdentifier: 
+  Type: 9
+  BodyType: 3
+  Gender: 2
+  Variants:
+  - {fileID: -1860828375743298673, guid: 9531f81324674fef8d2706bcf6a76df0, type: 3}
+  - {fileID: 1787151581612845482, guid: 9ab9c3fc4ae544edaa81a744bbc73a84, type: 3}
+  - {fileID: -2640697118468410866, guid: 905fe697ba6946e68d841b72227486e0, type: 3}
+  - {fileID: -7284450592332929611, guid: 0059f351242345328c0a309fe38c963b, type: 3}
+  - {fileID: -5961994759071797831, guid: 975f8ef7db9f4e95a6880260d165d230, type: 3}
+  - {fileID: 2520077992891751554, guid: 4a2d16d15e764402945577e9a1823b9b, type: 3}
+  - {fileID: 7406119818477225857, guid: d0efb28ab28e44cf8717787382501e84, type: 3}
+  - {fileID: -3211341148255500742, guid: 1ef2337596cb435e993f4636abb89fc4, type: 3}

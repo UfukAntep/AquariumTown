@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Senior_Male_Captain
+  m_EditorClassIdentifier: 
+  BodyType: 3
+  Gender: 1
+  Slots:
+  - {fileID: 9087634486998537237, guid: 4db5d310dcfe49ae870841d4fc48efa2, type: 3}
+  - {fileID: 7057205610728502169, guid: 2b77930744f34283846a1dad84e5456d, type: 3}
+  - {fileID: -4621874665576430710, guid: 17013667663e432498c229234b664824, type: 3}
+  - {fileID: 5043104889176039642, guid: ee19fc1ced3e49d1a9bbfe8ba0e07862, type: 3}

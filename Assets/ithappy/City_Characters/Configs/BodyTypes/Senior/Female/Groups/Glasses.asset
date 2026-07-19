@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Glasses
+  m_EditorClassIdentifier: 
+  Type: 7
+  BodyType: 3
+  Gender: 2
+  Variants:
+  - {fileID: -1038369237935414928, guid: a458845f53244470ad614662f680c7f5, type: 3}
+  - {fileID: 924733779676156021, guid: 15363603544e436a9175f6e08cae6163, type: 3}
+  - {fileID: 6204054282448703386, guid: bb5f245ef798413daec7ffc8b43918c7, type: 3}

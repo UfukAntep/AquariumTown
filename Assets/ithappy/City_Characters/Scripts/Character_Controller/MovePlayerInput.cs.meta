@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: be99e0c85d9e442888e3bb497773d4b9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 350888
+  packageName: City Characters - Modular Animated Pack
+  packageVersion: 1.2
+  assetPath: Assets/ithappy/City_Characters/Scripts/Character_Controller/MovePlayerInput.cs
+  uploadId: 927630

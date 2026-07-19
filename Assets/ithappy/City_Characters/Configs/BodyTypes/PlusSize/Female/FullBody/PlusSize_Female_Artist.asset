@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: PlusSize_Female_Artist
+  m_EditorClassIdentifier: 
+  BodyType: 2
+  Gender: 2
+  Slots:
+  - {fileID: -556730140390438617, guid: 0b8a5c1ce122434181d082b8da2727bc, type: 3}
+  - {fileID: 4050091949411560815, guid: f8ed942a3ff54e6c89c128e7f4cb3046, type: 3}
+  - {fileID: -8028106010407075692, guid: 22ec71086b74416cb7e90f5b72dfc4da, type: 3}
+  - {fileID: 6288082312940304318, guid: 26eb4d5e7da046baa6eeddb9ce63138f, type: 3}

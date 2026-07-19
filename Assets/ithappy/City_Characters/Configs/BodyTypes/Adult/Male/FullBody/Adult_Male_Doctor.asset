@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Doctor
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: 5017621662061858886, guid: 27d7682c1dbd4afaae9c0cb45050ffba, type: 3}
+  - {fileID: 1978368969657361116, guid: f0fb1be7ab2b47e3b7720df3f1674d7d, type: 3}
+  - {fileID: -7293495769938896271, guid: 1d574ccfc6ff44fa81ad2aeddda274d2, type: 3}
+  - {fileID: -6365221976094967068, guid: d09c6817726449999a27252112a333af, type: 3}

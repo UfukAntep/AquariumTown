@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: PlusSize_Male_Architect
+  m_EditorClassIdentifier: 
+  BodyType: 2
+  Gender: 1
+  Slots:
+  - {fileID: -7523948810513776910, guid: 59d1e870162f492fa51646f40e580268, type: 3}
+  - {fileID: 733535066216513369, guid: 1588c3ba8017467eb7091cfc11652c02, type: 3}
+  - {fileID: -7249013755057230756, guid: c4ca1ec181b14d57b26c31cca502ca71, type: 3}
+  - {fileID: 3121552101807986259, guid: 8aaa57fff5af4379a47615296a237048, type: 3}

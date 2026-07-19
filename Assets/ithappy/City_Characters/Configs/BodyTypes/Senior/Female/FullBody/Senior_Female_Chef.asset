@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Senior_Female_Chef
+  m_EditorClassIdentifier: 
+  BodyType: 3
+  Gender: 2
+  Slots:
+  - {fileID: -3722417262557144073, guid: 027ca45bd5584ad58cae5559e47aa5ca, type: 3}
+  - {fileID: -8292783356402056737, guid: 40c01163fadf49b196429791403251e1, type: 3}
+  - {fileID: -7680539454369356251, guid: a873019f41f542f782c1add1ab38216e, type: 3}
+  - {fileID: -4491226033962615922, guid: 2fcc30e2777e4d728d8db4fd0b969780, type: 3}

@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43824877ce7d444481529cd99f121bc9, type: 3}
+  m_Name: PlusSize_Female
+  m_EditorClassIdentifier: 
+  BodyType: 2
+  Gender: 2
+  Slots:
+  - {fileID: 11400000, guid: c774dd3424c74b208336ca3d9581c280, type: 2}
+  - {fileID: 11400000, guid: 2a8bddd673a643e7b88c4910b3eb754f, type: 2}
+  - {fileID: 11400000, guid: 115f45899c2b4af18754b289dd1193a7, type: 2}
+  - {fileID: 11400000, guid: 770fbc5489f44c48a4246300dae885de, type: 2}
+  - {fileID: 11400000, guid: 80ba98a9cee54e8e8bdb6060de045ca4, type: 2}
+  - {fileID: 11400000, guid: 46c15cebcdc146c3bf603d68823baa2c, type: 2}
+  - {fileID: 11400000, guid: 8b9f2b10d80844bba229fc95e2e587b5, type: 2}
+  - {fileID: 11400000, guid: 11b2f2c46bbc4907ad70d1eeef40c9cd, type: 2}
+  - {fileID: 11400000, guid: 72ceeab08eb64905a96aff63233dd555, type: 2}
+  FullBodyEntries:
+  - {fileID: 11400000, guid: 600b5adfd54c44c4be969cfd2be3e647, type: 2}
+  - {fileID: 11400000, guid: 4392fd7dcae84bfe89a99f3c26bd4c67, type: 2}
+  - {fileID: 11400000, guid: 82f817f7407d4adeba75eb701c934f1b, type: 2}
+  - {fileID: 11400000, guid: aa8c5ff0caf841dca80c0d210ab1c5f1, type: 2}
+  - {fileID: 11400000, guid: 2393f01338444f79bedfd0dfc743588f, type: 2}
+  - {fileID: 11400000, guid: 1279f18bb0e74595a75cbe6f14a76151, type: 2}
+  - {fileID: 11400000, guid: 3fde09d2dd474bf99c68b20f858d58f0, type: 2}
+  - {fileID: 11400000, guid: 67f17a0b695c42efb8899ca9beb991c8, type: 2}
+  - {fileID: 11400000, guid: b3e10f67adfe4ca18f45201618c18903, type: 2}

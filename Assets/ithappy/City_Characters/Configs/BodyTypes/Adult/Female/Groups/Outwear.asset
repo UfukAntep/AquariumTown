@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Outwear
+  m_EditorClassIdentifier: 
+  Type: 18
+  BodyType: 1
+  Gender: 2
+  Variants:
+  - {fileID: 4776414474272730363, guid: 2f7bf332889b4a488a922ba1fa7454eb, type: 3}
+  - {fileID: -5383382100339861619, guid: ae28700f5e054914b6281aa173491bc7, type: 3}
+  - {fileID: -1135006597983821528, guid: 7e46a8021723427bb9773aa8d45a4d8e, type: 3}
+  - {fileID: -4098645014664147140, guid: 7c8cf1de1e0347f29c4c51ee50d68732, type: 3}
+  - {fileID: 6512185852483308433, guid: b3d88ca542d24b15a860195fb983cab3, type: 3}

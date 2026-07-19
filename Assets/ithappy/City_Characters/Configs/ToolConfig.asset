@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4877e6318c447369985b5d43b2263f8, type: 3}
+  m_Name: ToolConfig
+  m_EditorClassIdentifier: 
+  _packageName: City_Characters
+  _bodyTypes:
+  - {fileID: 11400000, guid: 46b7c1fad2d94c09ae2281fa578bc6c1, type: 2}
+  - {fileID: 11400000, guid: 137ebaf98ccb4eeb825fd8afe23c1760, type: 2}
+  - {fileID: 11400000, guid: 9f6d616467ad45c9b5578c9a4ff44319, type: 2}
+  - {fileID: 11400000, guid: 62b543ffdee2430cab53e161b5bbcef3, type: 2}
+  - {fileID: 11400000, guid: 5eb12477fb7f491db04e20d4d6e1d1b7, type: 2}
+  - {fileID: 11400000, guid: eb1f7988f83f438b8c42b437de8947d9, type: 2}

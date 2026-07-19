@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: f51daffcbae7400699cea2ff879d5bf6
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 350888
+  packageName: City Characters - Modular Animated Pack
+  packageVersion: 1.2
+  assetPath: Assets/ithappy/City_Characters/Scripts/Character_Controller/ThirdPersonCamera.cs
+  uploadId: 927630

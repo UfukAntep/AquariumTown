@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: HatHairstyle
+  m_EditorClassIdentifier: 
+  Type: 12
+  BodyType: 4
+  Gender: 2
+  Variants:
+  - {fileID: 8218710515328633066, guid: 24fc8eff252046f7bd133ba2db215102, type: 3}
+  - {fileID: -8069401746788386714, guid: 8e2cea7781bc4bbe992b7081533a7565, type: 3}
+  - {fileID: 3420658292961241878, guid: 1e3aaf7f13e64df6aa1e37e5f09b1769, type: 3}
+  - {fileID: -5973574561810861592, guid: 2e5c2309f44541d59434885b17e3bae8, type: 3}
+  - {fileID: -6626859142143995337, guid: a68428c92bd248afb37773746e2d90f9, type: 3}
+  - {fileID: -5729633276633205970, guid: 2f5816fb758240e2833f0bbf22efcdaa, type: 3}
+  - {fileID: -609858525558505720, guid: 5fce22508e13469a9007bf7710e6cf46, type: 3}
+  - {fileID: 6960069972152778516, guid: c70708263e40460488c315836189df31, type: 3}
+  - {fileID: -1712739026808894893, guid: 28e77c79fd7e492e8d3685f38a9fe83b, type: 3}

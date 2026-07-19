@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a12bb32c1e5f4b0fa5d0d98f8e114ae9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 350888
+  packageName: City Characters - Modular Animated Pack
+  packageVersion: 1.2
+  assetPath: Assets/ithappy/City_Characters/Scripts/FaceManagement/FacePicker.cs
+  uploadId: 927630

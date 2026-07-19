@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Senior_Female_Teacher
+  m_EditorClassIdentifier: 
+  BodyType: 3
+  Gender: 2
+  Slots:
+  - {fileID: -5768710850635046693, guid: c372ecc84e164d4b9c4a969ad27cc16b, type: 3}
+  - {fileID: 5829534497452050016, guid: 0920ed5c41e6455599ff84705f478f9a, type: 3}
+  - {fileID: 2183147239991507838, guid: 95bb1eb157974b2ca10b37d180f8223a, type: 3}
+  - {fileID: -5410990848160867915, guid: 2fa38d21748e460caf710cf9c5ccead1, type: 3}

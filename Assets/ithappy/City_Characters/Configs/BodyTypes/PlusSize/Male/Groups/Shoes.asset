@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Shoes
+  m_EditorClassIdentifier: 
+  Type: 22
+  BodyType: 2
+  Gender: 1
+  Variants:
+  - {fileID: 8664898571850358019, guid: baae65fe1e7f40b389d323162de4ccdc, type: 3}
+  - {fileID: -7642718121030970313, guid: bed445fc9aa9425ea4f98879f74d406b, type: 3}
+  - {fileID: -5552674740798900342, guid: bf00e949897046d6a631a84aeac8f15f, type: 3}
+  - {fileID: 5035924977285357986, guid: 62737b0f5fdb439bb15221a0955af684, type: 3}
+  - {fileID: -1395066841231660989, guid: 77b6b8eacdd9495f97c9c3260d19fb21, type: 3}
+  - {fileID: -3239854099697681153, guid: b336230dbde942c08aa18074a514a0f4, type: 3}
+  - {fileID: 5687544928488844130, guid: 7aea2672f253420397ce7c65683f164f, type: 3}
+  - {fileID: 5934080493949335256, guid: ea679cc8dafa4730a11ce631beb9bebf, type: 3}
+  - {fileID: 3811507002823857408, guid: 0148bdd1950a44e8bd7bff360b44e22a, type: 3}

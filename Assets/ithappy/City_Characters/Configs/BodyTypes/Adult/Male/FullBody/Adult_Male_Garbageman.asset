@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Garbageman
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: -7249100244043427206, guid: 23d7f55474f7437ab6d00e75c093ac2c, type: 3}
+  - {fileID: 1800889395998257261, guid: 86e403535c304c1b9a409f56a1419b23, type: 3}
+  - {fileID: 1091684241564389655, guid: 0e2b4540c769412c96b37bd046fe2eff, type: 3}
+  - {fileID: 2137870769968051454, guid: 625f204dcde04ef4bb7ca8d572e6123e, type: 3}
+  - {fileID: 8215893771210275693, guid: e7df72bf80934da1bee4942badb266b4, type: 3}

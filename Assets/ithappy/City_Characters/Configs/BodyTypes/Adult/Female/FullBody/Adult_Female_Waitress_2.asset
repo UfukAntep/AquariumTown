@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Female_Waitress_2
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 2
+  Slots:
+  - {fileID: 4394345400209942425, guid: 943eda3e57bd4684868b0fa5732c056a, type: 3}
+  - {fileID: 1919046597749988416, guid: 92be5687e7144ff48c3ea4b398ffbf88, type: 3}
+  - {fileID: 4466435928371504395, guid: bfbd390ab3e94694bb6e954a92d29bae, type: 3}
+  - {fileID: -5413236095526683133, guid: 5e69136bbf6e414c9df903ff72c024bd, type: 3}

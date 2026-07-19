@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Cook
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: -1002714801127090635, guid: d147fcd0e3dc4694aa82b023509de6bb, type: 3}
+  - {fileID: -4228065176120179615, guid: c39cf33bb05a4ba28eae8d8191c87eeb, type: 3}
+  - {fileID: -6382801366463596020, guid: 7a9b05dd005147e59a89f6c56d15fa74, type: 3}
+  - {fileID: 1913345954196794600, guid: 786a3fd88b5e4deb9ea65810be1a123e, type: 3}
+  - {fileID: 6695104230848310980, guid: 054904d1860346e9801f39c450147ecf, type: 3}

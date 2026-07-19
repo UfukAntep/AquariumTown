@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Shorts
+  m_EditorClassIdentifier: 
+  Type: 23
+  BodyType: 1
+  Gender: 1
+  Variants:
+  - {fileID: -2847193978391547086, guid: d2a6316fd3b74c2c88feb3f4daff8719, type: 3}
+  - {fileID: 2648115950577033889, guid: 2dabd6f4c42c4d378b5bb5bc3282c158, type: 3}
+  - {fileID: -3896527982479911983, guid: 284436292e83451f86490eb314acfb1f, type: 3}

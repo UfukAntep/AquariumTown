@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c529d952b4143b606cfe60e80f440, type: 3}
+  m_Name: Hat
+  m_EditorClassIdentifier: 
+  Type: 10
+  BodyType: 6
+  Gender: 1
+  Variants:
+  - {fileID: -4932150612211242734, guid: 524f577300fd47479709c9b52e6a8054, type: 3}
+  - {fileID: -2000071726063600226, guid: 63740095521f438cb282182eb0bf0f93, type: 3}
+  - {fileID: -9179146154840529412, guid: 448b1dfe717147898b7813df3123e23a, type: 3}
+  - {fileID: 6166097306697640002, guid: 66e8db5915c945ea8261ad00ad80a924, type: 3}
+  - {fileID: -4902465870397573357, guid: f22596a6a5ed4f8cbfaf08d1856c4a24, type: 3}
+  - {fileID: 4890964877473108889, guid: ae17a982138f4f668601a28b6558c95e, type: 3}
+  - {fileID: 4598748277255837420, guid: 4191ed778cf3442b8cf13a614a5ec953, type: 3}
+  - {fileID: -2924140820308730284, guid: bb1d6862b784494bbb5046fcff0e48f5, type: 3}
+  - {fileID: -1808261569567368343, guid: a5a8cb29dc94454fafaf621d402cf948, type: 3}

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Bicyclist
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: -5208049366718038969, guid: 7c99d59290904508afcd1b7470c919e3, type: 3}
+  - {fileID: 7536705795599546052, guid: 1458c822dfc64c8a94c031c7e1243206, type: 3}
+  - {fileID: -6978634464934658481, guid: 0b0266450b13466896e8e6ce66d4f341, type: 3}

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Gardener
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: 2558072198698342302, guid: b7ff0ebd977a473fabc5e7a29dbeda46, type: 3}
+  - {fileID: 1021092315902193017, guid: 58a4d2bc0d94424cb822983b4c991086, type: 3}
+  - {fileID: -8676051537329693823, guid: 6a216d657d974a4bb7c882a4684b7381, type: 3}

@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Male_Saver
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 1
+  Slots:
+  - {fileID: -8442301962724498389, guid: 1be38068bbb74a90b928fc626d93c0d4, type: 3}
+  - {fileID: 803674140577670784, guid: f26d24e6447148e6b0846b204ef87b9d, type: 3}
+  - {fileID: 3418078824933543817, guid: ceedc416e8174ec289f4e4a32f6b80ba, type: 3}
+  - {fileID: -3934379111084038071, guid: 0bb16b11a4224534b19073dccf07ab35, type: 3}

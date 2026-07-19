@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3dd1abd335645bd8e2d9b574ba5bce6, type: 3}
+  m_Name: Adult_Female_Patient
+  m_EditorClassIdentifier: 
+  BodyType: 1
+  Gender: 2
+  Slots:
+  - {fileID: -3802569327316602046, guid: 6387a06fdc3446d386d581b8770748e2, type: 3}
+  - {fileID: 7045199493288546148, guid: 9bc26bfdc1e04408a2f3b0ae607c1fe6, type: 3}
