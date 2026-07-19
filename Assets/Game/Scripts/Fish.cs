@@ -124,9 +124,12 @@ public class Fish : MonoBehaviour
 
     void PickWander()
     {
+        int modelIdx = species % 24;
+        bool isBottomFeeder = (modelIdx == 1 || modelIdx == 3 || modelIdx == 9 || modelIdx == 10 || modelIdx == 12);
+        float targetY = isBottomFeeder ? area.min.y + 0.15f : Random.Range(area.min.y, area.max.y);
         wanderTarget = new Vector3(
             Random.Range(area.min.x, area.max.x),
-            Random.Range(area.min.y, area.max.y),
+            targetY,
             Random.Range(area.min.z, area.max.z));
         wanderTimer = Random.Range(2f, 5f);
     }

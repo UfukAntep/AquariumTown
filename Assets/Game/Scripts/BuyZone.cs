@@ -14,13 +14,21 @@ public class BuyZone : MonoBehaviour
     Transform plotFill; // green area that rises across the pad as you pay
     GameObject root;
     bool visible = true;
+    bool hideUntilPrereq;
+    bool lastCanBuy;
 
     // Tank plot: brown pad + dark fish silhouette + name. Only the next couple are visible.
     public static BuyZone CreatePlot(int sp, Vector3 pos)
     {
         BuyZone z = CreateBase("Plot_" + sp, SpeciesInfo.PlotCost(sp), pos,
-            delegate () { return Game.gm.unlockedCount >= sp && Game.gm.unlockedCount <= sp + 1 && Game.gm.ZoneOpen(sp / 20); },
+            delegate ()
+            {
+                bool starterAreaOpen = sp < 10 || sp >= 20 || Game.gm.starterBackAreaOpen;
+                return Game.gm.unlockedCount >= sp && Game.gm.unlockedCount <= sp + 1 &&
+                    Game.gm.ZoneOpen(sp / 20) && starterAreaOpen;
+            },
             delegate { Game.gm.UnlockNext(); });
+        z.hideUntilPrereq = true;
         Material pad = MatLib.Get(new Color(0.72f, 0.58f, 0.42f));
         Material shadow = MatLib.Get(new Color(0.35f, 0.28f, 0.2f));
         Material corner = MatLib.Get(Color.white);
@@ -74,6 +82,7 @@ public class BuyZone : MonoBehaviour
         z.root = new GameObject("Visual");
         z.root.transform.SetParent(go.transform, false);
         z.text = B.Text3D("", z.root.transform, new Vector3(0f, 2f, 0f), 0.12f, Color.white);
+        z.lastCanBuy = prereq == null || prereq();
         z.UpdateText();
         return z;
     }
@@ -81,13 +90,16 @@ public class BuyZone : MonoBehaviour
     void UpdateText()
     {
         int remaining = Mathf.Max(0, cost - paid);
-        if (text != null) text.text = "$" + B.Money(remaining);
+        bool canBuy = prereq == null || prereq();
+        if (text != null) text.text = "$" + B.Money(remaining) + (canBuy ? "" : "\nKILITLI");
     }
 
     void Update()
     {
         if (Game.gm == null || Game.player == null) return; // scene restarting
-        bool show = prereq == null || prereq();
+        bool canBuy = prereq == null || prereq();
+        if (canBuy != lastCanBuy) { lastCanBuy = canBuy; UpdateText(); }
+        bool show = !hideUntilPrereq || canBuy;
         if (show != visible)
         {
             visible = show;
@@ -97,7 +109,7 @@ public class BuyZone : MonoBehaviour
 
         Vector3 p = Game.player.transform.position; p.y = 0f;
         Vector3 me = transform.position; me.y = 0f;
-        if (Vector3.Distance(p, me) < 2.2f && paid < cost)
+        if (canBuy && Vector3.Distance(p, me) < 2.2f && paid < cost)
         {
             float rate = Mathf.Max(30f, cost / 1.8f);
             payCarry += rate * Time.deltaTime;

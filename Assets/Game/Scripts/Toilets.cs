@@ -17,7 +17,13 @@ public class Toilets : MonoBehaviour
         public GameObject clogBlob;
     }
 
+    class UrineSpot
+    {
+        public GameObject go;
+    }
+
     List<Unit> units = new List<Unit>();
+    List<UrineSpot> urineSpots = new List<UrineSpot>();
     GameObject lockedSign;
     float playerFixTimer;
 
@@ -32,6 +38,7 @@ public class Toilets : MonoBehaviour
         get { int n = 0; for (int i = 0; i < units.Count; i++) if (units[i].type == 1 && units[i].dirt < 0.7f) n++; return n; }
     }
     public bool HasCleanUnit { get { return CleanToiletCount > 0; } }
+    public int UrineSpotCount { get { urineSpots.RemoveAll(s => s == null || s.go == null); return urineSpots.Count; } }
 
     public static Toilets Create(Vector3 pos, Transform parent)
     {
@@ -46,12 +53,43 @@ public class Toilets : MonoBehaviour
 
     void Build()
     {
-        Material tile = MatLib.Get(new Color(0.85f, 0.92f, 0.95f));
-        B.Prim(PrimitiveType.Cube, "Floor", transform, new Vector3(3f, 0.02f, 0f), Vector3.zero, new Vector3(15f, 0.04f, 9f), tile);
+        BuildAreaShell(transform, false);
         B.Text3D("TUVALETLER", transform, new Vector3(3f, 3.6f, 2f), 0.13f, new Color(0.4f, 0.7f, 0.95f));
 
         for (int i = 0; i < Game.gm.toiletCount; i++) AddUnit(0);
         for (int i = 0; i < Game.gm.sinkCount; i++) AddUnit(1);
+    }
+
+    // Thin-walled room used both by the locked preview and the purchased annex.
+    public static void BuildAreaShell(Transform parent, bool locked)
+    {
+        Material tile = MatLib.Get(locked ? new Color(0.48f, 0.52f, 0.57f) : new Color(0.85f, 0.92f, 0.95f));
+        Material wall = MatLib.Get(locked ? new Color(0.28f, 0.34f, 0.4f) : new Color(0.48f, 0.72f, 0.84f));
+        B.Prim(PrimitiveType.Cube, "ToiletFloor", parent, new Vector3(3f, 0.025f, 0f), Vector3.zero,
+            new Vector3(15f, 0.05f, 9f), tile);
+        B.Prim(PrimitiveType.Cube, "ToiletWallBack", parent, new Vector3(3f, 0.8f, 4.5f), Vector3.zero,
+            new Vector3(15f, 1.6f, 0.18f), wall, true);
+        B.Prim(PrimitiveType.Cube, "ToiletWallLeft", parent, new Vector3(-4.5f, 0.8f, 0f), Vector3.zero,
+            new Vector3(0.18f, 1.6f, 9f), wall, true);
+        B.Prim(PrimitiveType.Cube, "ToiletWallRight", parent, new Vector3(10.5f, 0.8f, 0f), Vector3.zero,
+            new Vector3(0.18f, 1.6f, 9f), wall, true);
+
+        if (locked)
+        {
+            B.Prim(PrimitiveType.Cube, "ToiletWallFrontLocked", parent, new Vector3(3f, 0.8f, -4.5f), Vector3.zero,
+                new Vector3(15f, 1.6f, 0.18f), wall, true);
+            B.Text3D("KILITLI\nTUVALET ALANI", parent, new Vector3(3f, 2.8f, 0f), 0.14f, Color.white);
+            B.Text3D("$" + B.Money(GameManager.ToiletAreaCost) + "  (Sv " + GameManager.ToiletAreaLevel + ")",
+                parent, new Vector3(3f, 1.8f, 0f), 0.12f, new Color(1f, 0.9f, 0.3f));
+        }
+        else
+        {
+            // Three-metre doorway centred on the customer entrance.
+            B.Prim(PrimitiveType.Cube, "ToiletWallFrontL", parent, new Vector3(-1.5f, 0.8f, -4.5f), Vector3.zero,
+                new Vector3(6f, 1.6f, 0.18f), wall, true);
+            B.Prim(PrimitiveType.Cube, "ToiletWallFrontR", parent, new Vector3(7.5f, 0.8f, -4.5f), Vector3.zero,
+                new Vector3(6f, 1.6f, 0.18f), wall, true);
+        }
     }
 
     public void OnLevelChanged()
@@ -116,12 +154,28 @@ public class Toilets : MonoBehaviour
         if (best != null)
         {
             best.dirt = Mathf.Min(1f, best.dirt + Random.Range(0.12f, 0.28f));
+            if (Random.value < 0.32f) SpawnUrine(best.go.transform.position);
             UpdateText(best);
         }
     }
 
+    void SpawnUrine(Vector3 around)
+    {
+        urineSpots.RemoveAll(s => s == null || s.go == null);
+        if (urineSpots.Count >= 8) return;
+
+        Vector2 offset = Random.insideUnitCircle * 0.8f;
+        GameObject spot = B.Prim(PrimitiveType.Cylinder, "UrineSpot", transform,
+            transform.InverseTransformPoint(around + new Vector3(offset.x, 0.035f, offset.y)), Vector3.zero,
+            new Vector3(Random.Range(0.75f, 1.25f), 0.012f, Random.Range(0.75f, 1.25f)),
+            MatLib.Glass(new Color(1f, 0.82f, 0.08f, 0.62f)));
+        urineSpots.Add(new UrineSpot { go = spot });
+    }
+
     public int DirtiestUnit()
     {
+        urineSpots.RemoveAll(s => s == null || s.go == null);
+        if (urineSpots.Count > 0) return units.Count;
         int best = -1;
         float worst = 0.5f;
         for (int i = 0; i < units.Count; i++)
@@ -134,11 +188,30 @@ public class Toilets : MonoBehaviour
 
     public Vector3 UnitPos(int i)
     {
+        int spot = i - units.Count;
+        if (spot >= 0 && spot < urineSpots.Count && urineSpots[spot] != null && urineSpots[spot].go != null)
+            return urineSpots[spot].go.transform.position;
         return i >= 0 && i < units.Count ? units[i].go.transform.position : transform.position;
     }
 
     public void CleanNearest(Vector3 pos)
     {
+        urineSpots.RemoveAll(s => s == null || s.go == null);
+        int nearestSpot = -1;
+        float nearestSpotDistance = 4f;
+        for (int i = 0; i < urineSpots.Count; i++)
+        {
+            float d = Vector3.Distance(pos, urineSpots[i].go.transform.position);
+            if (d < nearestSpotDistance) { nearestSpotDistance = d; nearestSpot = i; }
+        }
+        if (nearestSpot >= 0)
+        {
+            Destroy(urineSpots[nearestSpot].go);
+            urineSpots.RemoveAt(nearestSpot);
+            Sfx.Play(Snd.Collect, 0.35f);
+            return;
+        }
+
         Unit best = null;
         float bd = 4f;
         for (int i = 0; i < units.Count; i++)
@@ -190,8 +263,18 @@ public class Toilets : MonoBehaviour
         if (Game.player != null)
         {
             bool near = false;
+            urineSpots.RemoveAll(s => s == null || s.go == null);
+            for (int i = 0; i < urineSpots.Count; i++)
+            {
+                if (Vector3.Distance(Game.player.transform.position, urineSpots[i].go.transform.position) < 2f)
+                {
+                    near = true;
+                    break;
+                }
+            }
             for (int i = 0; i < units.Count; i++)
             {
+                if (near) break;
                 if (!units[i].clogged && units[i].dirt < 0.5f) continue;
                 if (Vector3.Distance(Game.player.transform.position, units[i].go.transform.position) < 2f) { near = true; break; }
             }

@@ -214,9 +214,9 @@ public static class StaffInfo
 // ---------- Decor & equipment items (bought on the PC) ----------
 public static class DecorInfo
 {
-    public const int Count = 8;
-    public static readonly string[] Names = { "Palmiyeler", "Fiskiye", "Balon Kemeri", "Balik Heykeli", "Kirmizi Hali", "Fener Direkleri", "Ziplama Rampasi", "Jetski" };
-    public static readonly int[] Costs = { 500, 1200, 800, 2500, 600, 1500, 800, 3500 };
+    public const int Count = 9;
+    public static readonly string[] Names = { "Palmiyeler", "Fiskiye", "Balon Kemeri", "Balik Heykeli", "Kirmizi Hali", "Fener Direkleri", "Ziplama Rampasi", "Jetski", "Iskele" };
+    public static readonly int[] Costs = { 500, 1200, 800, 2500, 600, 1500, 800, 3500, 5000 };
 }
 
 // ---------- Materials & textures ----------
@@ -468,8 +468,53 @@ public static class B
         Transform model = q != null ? q.transform : SpeciesInfo.Build(sp, root.transform, 0.8f);
         model.localPosition = new Vector3(0f, 0f, -0.25f);
         model.localEulerAngles = new Vector3(0f, 90f, 0f);
+        MakePreviewModelVivid(model);
         root.AddComponent<Billboard>();
         return root;
+    }
+
+    // Tank labels are display graphics, so keep their fish readable regardless of
+    // the sun direction or night lighting used by the 3D world.
+    static void MakePreviewModelVivid(Transform model)
+    {
+        Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+        if (unlit == null) unlit = Shader.Find("Unlit/Texture");
+
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+        for (int r = 0; r < renderers.Length; r++)
+        {
+            Material[] source = renderers[r].sharedMaterials;
+            Material[] vivid = new Material[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                Material src = source[i];
+                if (src == null) continue;
+
+                Texture texture = null;
+                if (src.HasProperty("_BaseMap")) texture = src.GetTexture("_BaseMap");
+                if (texture == null && src.HasProperty("_MainTex")) texture = src.GetTexture("_MainTex");
+                Color tint = src.HasProperty("_BaseColor") ? src.GetColor("_BaseColor") :
+                    (src.HasProperty("_Color") ? src.GetColor("_Color") : Color.white);
+                // Imported fish textures expect a white material tint. A gray
+                // tint muddies every colour in the icon even with unlit shading.
+                Color brightTint = Color.white;
+                brightTint.a = tint.a;
+
+                vivid[i] = unlit != null ? new Material(unlit) : new Material(src);
+                if (vivid[i].HasProperty("_BaseMap")) vivid[i].SetTexture("_BaseMap", texture);
+                if (vivid[i].HasProperty("_MainTex")) vivid[i].SetTexture("_MainTex", texture);
+                if (vivid[i].HasProperty("_BaseColor")) vivid[i].SetColor("_BaseColor", brightTint);
+                if (vivid[i].HasProperty("_Color")) vivid[i].SetColor("_Color", brightTint);
+                if (unlit == null && vivid[i].HasProperty("_EmissionColor"))
+                {
+                    vivid[i].EnableKeyword("_EMISSION");
+                    vivid[i].SetColor("_EmissionColor", brightTint * 0.45f);
+                }
+            }
+            renderers[r].sharedMaterials = vivid;
+            renderers[r].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderers[r].receiveShadows = false;
+        }
     }
 
     public static GameObject Stickman(Transform parent, Color c, float scale = 1f)

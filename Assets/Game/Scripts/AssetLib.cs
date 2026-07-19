@@ -20,6 +20,7 @@ public static class AssetLib
     static GameObject cashPrefab;
     static Material waterMaterial;
     static Dictionary<Material, Material> matFix = new Dictionary<Material, Material>();
+    static Dictionary<Material, Material> seaMatFix = new Dictionary<Material, Material>();
 
     public static void Clear()
     {
@@ -31,6 +32,7 @@ public static class AssetLib
         walkClip = null; idleClip = null; moveController = null;
         cashPrefab = null; waterMaterial = null;
         matFix.Clear();
+        seaMatFix.Clear();
     }
 
     static void Init()
@@ -39,7 +41,7 @@ public static class AssetLib
         inited = true;
 #if UNITY_EDITOR
         LoadFolder("Assets/ithappy/City_Characters/Prefabs/Characters", characters);
-        LoadFolder("Assets/ithappy/Casual_Food/Prefabs", foods);
+        LoadFolder("Assets/ithappy/Casual_Food/Prefabs", foods, false, new string[] { "cocktail_005" });
         walkClip = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/ithappy/City_Characters/Animations/Adult/Adult_Walk.anim");
         idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/ithappy/City_Characters/Animations/Adult/Adult_IdleLookAround.anim");
         moveController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
@@ -157,6 +159,7 @@ public static class AssetLib
         go.transform.localPosition = Vector3.zero;
         go.transform.localRotation = Quaternion.identity;
         FixMaterials(go);
+        FixSeaAnimalMaterials(go);
         StripColliders(go);
         NormalizeSize(go, targetSize);
         go.AddComponent<QuirkyMotion>();
@@ -260,6 +263,45 @@ public static class AssetLib
                 changed = true;
             }
             if (changed) rends[r].sharedMaterials = mats;
+        }
+    }
+
+    // Some pack shaders cast shadows but fail to draw their surface in URP.
+    // Sea animals use a predictable opaque URP/Lit material with white tint so
+    // their texture colours stay bright both in the lake and in aquariums.
+    static void FixSeaAnimalMaterials(GameObject go)
+    {
+        Shader urp = Shader.Find("Universal Render Pipeline/Lit");
+        if (urp == null) return;
+        Renderer[] rends = go.GetComponentsInChildren<Renderer>(true);
+        for (int r = 0; r < rends.Length; r++)
+        {
+            Material[] mats = rends[r].sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                Material src = mats[i];
+                if (src == null) continue;
+                Material fixedMat;
+                if (!seaMatFix.TryGetValue(src, out fixedMat) || fixedMat == null)
+                {
+                    fixedMat = new Material(urp);
+                    Texture tex = null;
+                    if (src.HasProperty("_BaseMap")) tex = src.GetTexture("_BaseMap");
+                    if (tex == null && src.HasProperty("_MainTex")) tex = src.GetTexture("_MainTex");
+                    if (tex == null && src.HasProperty("_BaseColorMap")) tex = src.GetTexture("_BaseColorMap");
+                    if (fixedMat.HasProperty("_BaseMap")) fixedMat.SetTexture("_BaseMap", tex);
+                    fixedMat.SetColor("_BaseColor", Color.white);
+                    fixedMat.SetFloat("_Surface", 0f);
+                    fixedMat.SetFloat("_Smoothness", 0.25f);
+                    fixedMat.SetFloat("_ZWrite", 1f);
+                    fixedMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+                    seaMatFix[src] = fixedMat;
+                }
+                mats[i] = fixedMat;
+            }
+            rends[r].sharedMaterials = mats;
+            rends[r].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            rends[r].receiveShadows = true;
         }
     }
 

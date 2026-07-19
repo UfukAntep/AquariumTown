@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    const int TrashCarryLimit = 5;
     public Transform stackAnchor;
     public Transform visual;
     public Jetski jetski; // mounted jetski (bought on the PC)
@@ -254,24 +255,16 @@ public class PlayerController : MonoBehaviour
         if (aim.sqrMagnitude < 0.01f) aim = Vector3.forward;
         aim.Normalize();
 
-        // cone visual follows the aim while swimming
-        fan.gameObject.SetActive(canScan);
-        if (canScan)
-        {
-            float r = Game.gm.RadarRange;
-            fan.position = transform.position + Vector3.up * 0.62f;
-            fan.rotation = Quaternion.LookRotation(aim);
-            fan.localScale = new Vector3(r, 1f, r);
-        }
-
         Fish newTarget = null;
         if (canScan)
         {
             float range = Game.gm.RadarRange;
-            // keep the current target while it stays roughly inside the cone
+            bool autoRadar = Game.gm.techOwned[4] && Game.gm.techEnabled[4];
+            
+            // keep the current target while it stays roughly inside the cone (or just inside range if auto-radar is on)
             if (target != null && target.state == Fish.State.Wild &&
                 Vector3.Distance(transform.position, target.transform.position) <= range * 1.15f &&
-                Vector3.Angle(aim, Flat(target.transform.position - transform.position)) < 45f)
+                (autoRadar || Vector3.Angle(aim, Flat(target.transform.position - transform.position)) < 45f))
                 newTarget = target;
             else
                 newTarget = Game.sea.FindTargetInCone(transform.position, aim, range, 30f);
@@ -282,6 +275,26 @@ public class PlayerController : MonoBehaviour
             if (target != null) target.scanner = null;
             target = newTarget;
             scanProgress = 0f;
+        }
+        
+        // cone visual follows the aim (or locks to target if auto-radar is on)
+        fan.gameObject.SetActive(canScan);
+        if (canScan)
+        {
+            float r = Game.gm.RadarRange;
+            fan.position = transform.position + Vector3.up * 0.62f;
+            fan.localScale = new Vector3(r, 1f, r);
+            
+            if (target != null && Game.gm.techOwned[4] && Game.gm.techEnabled[4])
+            {
+                Vector3 toTarget = Flat(target.transform.position - transform.position);
+                if (toTarget.sqrMagnitude > 0.01f)
+                    fan.rotation = Quaternion.LookRotation(toTarget.normalized);
+            }
+            else
+            {
+                fan.rotation = Quaternion.LookRotation(aim);
+            }
         }
 
         bool active = target != null;
@@ -406,7 +419,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Game.trash == null) return;
 
-        if (heldTrash.Count < 3)
+        if (heldTrash.Count < TrashCarryLimit)
         {
             TrashItem t = Game.trash.FindNear(transform.position, 1.5f, Swimming);
             if (t != null)

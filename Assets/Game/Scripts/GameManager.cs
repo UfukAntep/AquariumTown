@@ -12,8 +12,8 @@ public class GameManager : MonoBehaviour
     public int[] tankLevel = new int[SpeciesInfo.Count];
     public bool[] decorOwned = new bool[DecorInfo.Count];
     public bool[] zoneOpen = new bool[5]; // shop expansion areas (zone 0 free)
-    public bool[] techOwned = new bool[4];   // 0 pusula, 1 harita, 2 navigasyon(minimap), 3 uzaktan kontrol
-    public bool[] techEnabled = new bool[4]; // owned techs can be toggled on/off
+    public bool[] techOwned = new bool[6];   // 0 pusula, 1 harita, 2 navigasyon(minimap), 3 uzaktan kontrol, 4 otomatik radar, 5 otomatik dukkan
+    public bool[] techEnabled = new bool[6]; // owned techs can be toggled on/off
     public bool[] discovered = new bool[SpeciesInfo.Count]; // caught at least once (VERITABANI)
     public string shopName = "";
     public bool freshStart; // true only on the very first session of a save
@@ -31,9 +31,14 @@ public class GameManager : MonoBehaviour
     public int toiletCount;
     public int sinkCount;
     public bool toiletAreaOpen;      // toilet annex unlocked (paid on the spot)
+    public bool starterBackAreaOpen; // small rear section of the starting shop
     public bool shopOpen = true;
+    public int autoOpenTime = 8;
+    public int autoCloseTime = 22;
 
     public const int ToiletAreaCost = 3000;
+    public const int StarterBackAreaCost = 1800;
+    public const int StarterBackAreaLevel = 4;
     public const int ToiletDemandLevel = 10;   // customers start demanding toilets here
     public const int ToiletDailyCost = 40;     // per unit, deducted each day-end
     public float clockMinutes = 9 * 60f;      // 1 real second = 1 game minute
@@ -78,7 +83,7 @@ public class GameManager : MonoBehaviour
     public int ZoneCost(int b) { return 500 * (int)Mathf.Pow(4, b); } // 2000, 8000, 32K, 128K
 
     // ---------- technology ----------
-    public static readonly int[] TechCosts = { 600, 4000, 40000, 2500 };
+    public static readonly int[] TechCosts = { 600, 4000, 40000, 2500, 1500, 3000 };
 
     public bool TryBuyTech(int i)
     {
@@ -319,6 +324,22 @@ public class GameManager : MonoBehaviour
         clockMinutes += Time.deltaTime;
         if (clockMinutes >= 1440f) clockMinutes -= 1440f;
 
+        // Auto shop tech
+        if (techOwned[5] && techEnabled[5])
+        {
+            float openMin = autoOpenTime * 60f;
+            float closeMin = autoCloseTime * 60f;
+            
+            if (prevClock < openMin && clockMinutes >= openMin)
+            {
+                if (!shopOpen) { shopOpen = true; GameBootstrap.UpdateGateBarrier(); if(Game.ui != null) Game.ui.Toast("Dukkan otomatik olarak ACILDI!"); }
+            }
+            else if (prevClock < closeMin && clockMinutes >= closeMin)
+            {
+                if (shopOpen) { shopOpen = false; GameBootstrap.UpdateGateBarrier(); if(Game.ui != null) Game.ui.Toast("Dukkan otomatik olarak KAPATILDI."); }
+            }
+        }
+
         // 22:00 -> shop night: tell the player how to end the day (once per day)
         if (clockMinutes >= 22f * 60f && clockMinutes < 23f * 60f && lateInfoDay != dayNumber && Game.ui != null && Game.player != null)
         {
@@ -384,10 +405,13 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "Toilets", toiletCount);
         PlayerPrefs.SetInt(P + "Sinks", sinkCount);
         PlayerPrefs.SetInt(P + "ToiletArea", toiletAreaOpen ? 1 : 0);
+        PlayerPrefs.SetInt(P + "StarterBackArea", starterBackAreaOpen ? 1 : 0);
         PlayerPrefs.SetInt(P + "Lang", language);
         PlayerPrefs.SetInt(P + "RevCount", reviewCount);
         PlayerPrefs.SetInt(P + "RevSum", reviewStarSum);
         PlayerPrefs.SetInt(P + "Open", shopOpen ? 1 : 0);
+        PlayerPrefs.SetInt(P + "AutoOpen", autoOpenTime);
+        PlayerPrefs.SetInt(P + "AutoClose", autoCloseTime);
         PlayerPrefs.SetFloat(P + "Clock", clockMinutes);
         for (int i = 0; i < upg.Length; i++) PlayerPrefs.SetInt(P + "Upg" + i, upg[i]);
         for (int i = 0; i < staffCounts.Length; i++) PlayerPrefs.SetInt(P + "Staff" + i, staffCounts[i]);
@@ -431,10 +455,13 @@ public class GameManager : MonoBehaviour
         toiletCount = PlayerPrefs.GetInt(P + "Toilets", 0);
         sinkCount = PlayerPrefs.GetInt(P + "Sinks", 0);
         toiletAreaOpen = PlayerPrefs.GetInt(P + "ToiletArea", 0) == 1;
+        starterBackAreaOpen = PlayerPrefs.GetInt(P + "StarterBackArea", 0) == 1;
         language = PlayerPrefs.GetInt(P + "Lang", -1);
         reviewCount = PlayerPrefs.GetInt(P + "RevCount", 0);
         reviewStarSum = PlayerPrefs.GetInt(P + "RevSum", 0);
         shopOpen = PlayerPrefs.GetInt(P + "Open", 1) == 1;
+        autoOpenTime = PlayerPrefs.GetInt(P + "AutoOpen", 8);
+        autoCloseTime = PlayerPrefs.GetInt(P + "AutoClose", 22);
         clockMinutes = PlayerPrefs.GetFloat(P + "Clock", 9 * 60f);
         for (int i = 0; i < upg.Length; i++) upg[i] = PlayerPrefs.GetInt(P + "Upg" + i, 0);
         for (int i = 0; i < staffCounts.Length; i++) staffCounts[i] = PlayerPrefs.GetInt(P + "Staff" + i, 0);

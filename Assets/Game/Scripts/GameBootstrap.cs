@@ -118,8 +118,8 @@ public class GameBootstrap : MonoBehaviour
     const int Cols = 5;
     public const float MapTop = 190f;
 
-    // Fill order: #1 top of col0, #2 below it, #3 top of col1 (to the left), #4
-    // below #3... marching left to the toilet, then up two rows to the next band.
+    // Fill order: #1 top of col0, #2 directly below it, then the next columns
+    // continue left. Later bands continue upward without entering the toilet room.
     public static Vector3 PlotPos(int i)
     {
         int band = i / 10;
@@ -193,21 +193,30 @@ public class GameBootstrap : MonoBehaviour
             Toilets.Create(toiletPos, transform);
         else
         {
-            BuyZone bz = BuyZone.CreateGeneric("TUVALET ALANI (Sv " + GameManager.ToiletAreaLevel + ")", GameManager.ToiletAreaCost, new Vector3(-49f, 0f, 2f), new Color(0.4f, 0.75f, 0.95f),
+            GameObject toiletLock = new GameObject("LockedToiletArea");
+            toiletLock.transform.SetParent(transform, false);
+            toiletLock.transform.position = toiletPos;
+            Toilets.BuildAreaShell(toiletLock.transform, true);
+
+            // Purchase pad stays just outside the locked room's east wall.
+            BuyZone.CreateGeneric("TUVALET ALANI (Sv " + GameManager.ToiletAreaLevel + ")", GameManager.ToiletAreaCost, new Vector3(-36f, 0f, 2f), new Color(0.4f, 0.75f, 0.95f),
                 delegate () { return Game.gm.Level >= GameManager.ToiletAreaLevel; },
                 delegate
                 {
                     Game.gm.toiletAreaOpen = true;
+                    Destroy(toiletLock);
                     Toilets.Create(toiletPos, Game.world);
                     Game.ui.Toast("Tuvalet alani acildi! PC'den klozet ve lavabo ekleyebilirsin.");
                 });
-            // preview so the locked area clearly looks like a TOILET (local coords)
+            // A small fixture preview sits inside the locked room.
             Material white = MatLib.Get(new Color(0.9f, 0.92f, 0.95f));
             Material wall = MatLib.Get(new Color(0.55f, 0.75f, 0.85f));
-            B.Prim(PrimitiveType.Cube, "PrevBack", bz.transform, new Vector3(0f, 1.1f, 1f), Vector3.zero, new Vector3(1.6f, 2.2f, 0.14f), wall);
-            B.Prim(PrimitiveType.Cube, "PrevTank", bz.transform, new Vector3(0f, 0.9f, 0.7f), Vector3.zero, new Vector3(0.6f, 0.55f, 0.28f), white);
-            B.Prim(PrimitiveType.Cylinder, "PrevBowl", bz.transform, new Vector3(0f, 0.4f, 0.3f), Vector3.zero, new Vector3(0.55f, 0.32f, 0.55f), white);
+            B.Prim(PrimitiveType.Cube, "PrevBack", toiletLock.transform, new Vector3(3f, 1.1f, 1f), Vector3.zero, new Vector3(1.6f, 2.2f, 0.14f), wall);
+            B.Prim(PrimitiveType.Cube, "PrevTank", toiletLock.transform, new Vector3(3f, 0.9f, 0.7f), Vector3.zero, new Vector3(0.6f, 0.55f, 0.28f), white);
+            B.Prim(PrimitiveType.Cylinder, "PrevBowl", toiletLock.transform, new Vector3(3f, 0.4f, 0.3f), Vector3.zero, new Vector3(0.55f, 0.32f, 0.55f), white);
         }
+
+        BuildStarterBackArea();
 
         for (int i = 0; i < SpeciesInfo.Count; i++)
         {
@@ -273,7 +282,7 @@ public class GameBootstrap : MonoBehaviour
         {
             gm.freshStart = false;
             for (int i = 0; i < 5; i++)
-                Game.trash.SpawnLandTrash(new Vector3(Random.Range(-20f, 2f), 0f, Random.Range(4f, 18f)), i % 2 == 0);
+                Game.trash.SpawnLandTrash(new Vector3(Random.Range(-20f, 2f), 0f, Random.Range(4f, 18f)), true);
             Game.ui.ShowInfo("DUKKANINA HOS GELDIN!",
                 "Saat daha 05:00 ve dukkanin su an KAPALI.\n" +
                 "Once yerdeki copleri toplayip disaridaki kutuya at,\n" +
@@ -318,6 +327,37 @@ public class GameBootstrap : MonoBehaviour
     }
 
     // ---------- expansion zones (locked gray areas with price labels) ----------
+    void BuildStarterBackArea()
+    {
+        if (Game.gm.starterBackAreaOpen) return;
+
+        const float z0 = 29.5f;
+        const float z1 = 49.5f;
+        float zc = (z0 + z1) * 0.5f;
+        GameObject overlay = new GameObject("StarterBackAreaLock");
+        overlay.transform.SetParent(transform, false);
+
+        Material gray = MatLib.Glass(new Color(0.22f, 0.24f, 0.28f, 0.58f));
+        Material barrier = MatLib.Get(new Color(0.32f, 0.38f, 0.45f));
+        B.Prim(PrimitiveType.Cube, "LockedFloor", overlay.transform, new Vector3(-25f, 0.055f, zc), Vector3.zero,
+            new Vector3(66f, 0.055f, z1 - z0), gray);
+        B.Prim(PrimitiveType.Cube, "Divider", overlay.transform, new Vector3(-25f, 0.8f, z0), Vector3.zero,
+            new Vector3(66f, 1.6f, 0.65f), barrier, true);
+        B.Text3D("KILITLI EK BOLUM", overlay.transform, new Vector3(-25f, 2.6f, zc), 0.16f, Color.white);
+        B.Text3D("$" + B.Money(GameManager.StarterBackAreaCost) + "   (Sv " + GameManager.StarterBackAreaLevel + ")",
+            overlay.transform, new Vector3(-25f, 1.6f, zc), 0.14f, new Color(1f, 0.9f, 0.3f));
+
+        BuyZone.CreateGeneric("EK BOLUM (Sv " + GameManager.StarterBackAreaLevel + ")", GameManager.StarterBackAreaCost,
+            new Vector3(-25f, 0f, 26f), new Color(0.4f, 0.8f, 0.65f),
+            delegate () { return Game.gm.Level >= GameManager.StarterBackAreaLevel; },
+            delegate
+            {
+                Game.gm.starterBackAreaOpen = true;
+                Destroy(overlay);
+                if (Game.ui != null) Game.ui.Toast("Dukkanin ek bolumu acildi!");
+            });
+    }
+
     void BuildZones()
     {
         for (int b = 1; b < 4; b++) // zones 1,2,3 (zone 0 free); each = 2 bands
@@ -467,6 +507,15 @@ public class GameBootstrap : MonoBehaviour
                     B.Prim(PrimitiveType.Sphere, "LampBulb", t, lamps[i] + Vector3.up * 3.4f, Vector3.zero, Vector3.one * 0.7f, MatLib.Get(new Color(1f, 0.95f, 0.6f)));
                 }
                 break;
+            case 8: // iskele
+                Material wood = MatLib.Get(new Color(0.7f, 0.5f, 0.3f));
+                Material woodD = MatLib.Get(new Color(0.55f, 0.4f, 0.25f));
+                B.Prim(PrimitiveType.Cube, "Dock", t, new Vector3(25f, 0.9f, 32f), Vector3.zero, new Vector3(10f, 0.3f, 3.4f), wood, true);
+                for (int i = 0; i < 4; i++)
+                    B.Prim(PrimitiveType.Cube, "DockLeg", t, new Vector3(21f + i * 2.6f, 0.4f, 32f + ((i % 2) * 2 - 1) * 1.4f), Vector3.zero, new Vector3(0.3f, 1f, 0.3f), woodD);
+                for (int i = 0; i < 3; i++)
+                    B.Prim(PrimitiveType.Cube, "DockStep", t, new Vector3(19.6f - i * 0.7f, 0.65f - i * 0.25f, 32f), Vector3.zero, new Vector3(0.7f, 0.22f, 3f), woodD, true);
+                break;
         }
         Sfx.Play(Snd.Drop, 0.3f);
     }
@@ -499,7 +548,7 @@ public class GameBootstrap : MonoBehaviour
             new Vector3(SeaRect.width / 10f, 1f, SeaRect.height / 10f), CuteWater());
         // bright turquoise seabed keeps the whole sea CUTE, not dark
         B.Prim(PrimitiveType.Cube, "SeaBed", transform, new Vector3(SeaRect.center.x, -1.6f, SeaRect.center.y), Vector3.zero,
-            new Vector3(SeaRect.width, 0.05f, SeaRect.height), MatLib.Get(new Color(0.36f, 0.8f, 0.95f)));
+            new Vector3(SeaRect.width, 0.05f, SeaRect.height), MatLib.Get(new Color(0.55f, 0.9f, 1f)));
         // shoreline: water edge skirt + underwater slope
         B.Prim(PrimitiveType.Cube, "ShoreSkirt", transform, new Vector3(SeaRect.xMin, 0.27f, SeaRect.center.y), Vector3.zero,
             new Vector3(0.15f, 0.56f, SeaRect.height), MatLib.Glass(new Color(0.4f, 0.78f, 0.98f, 0.6f)));
@@ -518,8 +567,8 @@ public class GameBootstrap : MonoBehaviour
         Material src = AssetLib.WaterMaterial();
         if (src == null) return MatLib.Glass(new Color(0.42f, 0.82f, 1f, 0.75f));
         Material m = new Material(src); // never modify the asset itself
-        Color shallow = new Color(0.55f, 0.9f, 1f, 0.8f);
-        Color deep = new Color(0.3f, 0.78f, 0.98f, 0.85f);
+        Color shallow = new Color(0.68f, 0.95f, 1f, 0.72f);
+        Color deep = new Color(0.42f, 0.86f, 1f, 0.78f);
         string[] shallowProps = { "_DepthGradientShallow", "_ShallowColor", "_Color_Shallow", "_BaseColor", "_Color" };
         string[] deepProps = { "_DepthGradientDeep", "_DeepColor", "_Color_Deep" };
         for (int i = 0; i < shallowProps.Length; i++)
@@ -574,9 +623,11 @@ public class GameBootstrap : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "WallW", wallsGo.transform, new Vector3(-58f, 0.8f, mid), Vector3.zero, new Vector3(1f, 1.6f, zN - zS), wall, true);
         B.Prim(PrimitiveType.Cube, "WallN", wallsGo.transform, new Vector3(-25f, 0.8f, zN), Vector3.zero, new Vector3(66f, 1.6f, 1f), wall, true);
         // east wall: openings for the exit arch (z 8-16) and customer gate (z 22-30)
-        B.Prim(PrimitiveType.Cube, "WallE1", wallsGo.transform, new Vector3(8f, 0.8f, 3f), Vector3.zero, new Vector3(1f, 1.6f, 10f), wall, true);
-        B.Prim(PrimitiveType.Cube, "WallE2", wallsGo.transform, new Vector3(8f, 0.8f, 19f), Vector3.zero, new Vector3(1f, 1.6f, 6f), wall, true);
-        B.Prim(PrimitiveType.Cube, "WallE3", wallsGo.transform, new Vector3(8f, 0.8f, (30f + zN) * 0.5f), Vector3.zero, new Vector3(1f, 1.6f, zN - 30f), wall, true);
+        // Leave a clean half-metre seat around each arch post. The first segment
+        // now reaches the south wall, removing the stray gap at the bottom.
+        B.Prim(PrimitiveType.Cube, "WallE1", wallsGo.transform, new Vector3(8f, 0.8f, 1.75f), Vector3.zero, new Vector3(1f, 1.6f, 11.5f), wall, true);
+        B.Prim(PrimitiveType.Cube, "WallE2", wallsGo.transform, new Vector3(8f, 0.8f, 19f), Vector3.zero, new Vector3(1f, 1.6f, 5f), wall, true);
+        B.Prim(PrimitiveType.Cube, "WallE3", wallsGo.transform, new Vector3(8f, 0.8f, (30.5f + zN) * 0.5f), Vector3.zero, new Vector3(1f, 1.6f, zN - 30.5f), wall, true);
     }
 
     void BuildGateAndArch()
@@ -602,16 +653,8 @@ public class GameBootstrap : MonoBehaviour
 
     void BuildDockAndRamp()
     {
-        Material wood = MatLib.Get(new Color(0.7f, 0.5f, 0.3f));
-        Material woodD = MatLib.Get(new Color(0.55f, 0.4f, 0.25f));
-        Material board = MatLib.Get(new Color(0.85f, 0.95f, 1f));
-
-        B.Prim(PrimitiveType.Cube, "Dock", transform, new Vector3(25f, 0.9f, 32f), Vector3.zero, new Vector3(10f, 0.3f, 3.4f), wood, true);
-        for (int i = 0; i < 4; i++)
-            B.Prim(PrimitiveType.Cube, "DockLeg", transform, new Vector3(21f + i * 2.6f, 0.4f, 32f + ((i % 2) * 2 - 1) * 1.4f), Vector3.zero, new Vector3(0.3f, 1f, 0.3f), woodD);
-        for (int i = 0; i < 3; i++)
-            B.Prim(PrimitiveType.Cube, "DockStep", transform, new Vector3(19.6f - i * 0.7f, 0.65f - i * 0.25f, 32f), Vector3.zero, new Vector3(0.7f, 0.22f, 3f), woodD, true);
-        // (the diving boards + jump ramp are bought on the PC as "Ziplama Rampasi")
+        // Dock (Iskele) is now a decor item (index 8).
+        // Ramp (Ziplama Rampasi) is decor item (index 6).
     }
 
     void BuildDisplayAquarium()

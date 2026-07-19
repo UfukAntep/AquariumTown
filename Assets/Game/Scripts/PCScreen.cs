@@ -18,10 +18,11 @@ public class PCScreen : MonoBehaviour
     GameObject summaryGo;
     Text sumTitle;
     Text[] sumVals = new Text[5];
-    int collPage, histPage, revPage;
-    Transform collRoot, histRoot, revRoot;
-    Text collPageText, histPageText, revHeaderText;
+    int collPage, histPage, revPage, techPage;
+    Transform collRoot, histRoot, revRoot, techRoot;
+    Text collPageText, histPageText, revHeaderText, techPageText;
     Text sumStars;
+    Image[] revHeaderStars;
 
     public bool IsOpen { get { return root != null && root.activeSelf; } }
 
@@ -99,7 +100,7 @@ public class PCScreen : MonoBehaviour
         GameObject box = UIKit.Panel(summaryGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(720f, 620f), UIKit.Cream, true, true);
         GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(750f, 88f), UIKit.Orange, true, true);
         sumTitle = UIKit.Label(band.transform, "", 30, Color.white, TextAnchor.MiddleCenter, true);
-        GameObject starsP = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(680f, 40f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        GameObject starsP = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(680f, 40f), new Color(0f, 0f, 0f, 0.001f), false, false);
         sumStars = UIKit.Label(starsP.transform, "", 22, new Color(0.85f, 0.6f, 0.1f), TextAnchor.MiddleCenter);
         string[] names = { "Gelen Musteri", "Satilan Balik", "Toplam Gelir", "Toplam Gider", "NET KAR" };
         for (int i = 0; i < 5; i++)
@@ -248,63 +249,28 @@ public class PCScreen : MonoBehaviour
         }
     }
 
-    // ---------- technology page (compass, map, minimap-nav, remote control) ----------
-    static readonly string[] TechNames = { "PUSULA", "HARITA", "GELISMIS NAVIGASYON", "UZAKTAN KONTROL" };
+    // ---------- technology page (compass, map, minimap-nav, remote control, auto-radar, auto-shop) ----------
+    static readonly string[] TechNames = { "PUSULA", "HARITA", "GELISMIS NAVIGASYON", "UZAKTAN KONTROL", "OTOMATIK RADAR", "OTOMATIK DUKKAN" };
     static readonly string[] TechDescs = {
         "Sol altta calisan pusula + en yakin baligi gosteren ok",
         "M tusuyla acilan oyun haritasi",
         "GTA tarzi MINIMAP + en degerli baligi isaretler (mesafeli)",
-        "Dukkani PC'den ac/kapat" };
+        "Dukkani PC'den ac/kapat",
+        "Radari uygun baliga otomatik kilitler (oyuncunun yonelmesi yeterlidir)",
+        "Dukkani belirlenen saatte otomatik acip kapatir" };
 
     void BuildTechPage(Transform page)
     {
-        for (int i = 0; i < 4; i++)
-        {
-            int idx = i;
-            float y = 215f - i * 122f;
-            GameObject card = UIKit.Panel(page, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(1050f, 108f), Color.white, true, true);
-            UIKit.Icon(card.transform, UIKit.Circle(), new Vector2(0f, 0.5f), new Vector2(56f, 0f), new Vector2(56f, 56f), new Color(0.3f, 0.7f, 0.75f));
-            GameObject la = UIKit.Panel(card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(100f, 0f), new Vector2(560f, 96f), new Color(0f, 0f, 0f, 0.001f), false, false);
-            UIKit.Label(la.transform, TechNames[idx] + "\n" + TechDescs[idx], 16, UIKit.TextDark, TextAnchor.MiddleLeft);
-            Button btn = UIKit.Btn(card.transform, new Vector2(380f, 0f), new Vector2(230f, 56f), UIKit.Green, "", 17,
-                delegate
-                {
-                    if (!Game.gm.techOwned[idx])
-                    {
-                        if (Game.gm.TryBuyTech(idx)) RefreshAll();
-                        else Sfx.Play(Snd.Drop, 0.3f);
-                    }
-                    else if (idx != 3) // owned techs can be toggled on/off
-                    {
-                        Game.gm.techEnabled[idx] = !Game.gm.techEnabled[idx];
-                        Sfx.Play(Snd.Tick, 0.4f);
-                        RefreshAll();
-                    }
-                });
-            Text bt = btn.GetComponentInChildren<Text>();
-            refreshers.Add(delegate
-            {
-                if (Game.gm.techOwned[idx])
-                {
-                    if (idx == 3) { bt.text = "AKTIF"; btn.image.color = new Color(0.65f, 0.65f, 0.65f); }
-                    else
-                    {
-                        bool on = Game.gm.techEnabled[idx];
-                        bt.text = on ? "ACIK (kapat)" : "KAPALI (ac)";
-                        btn.image.color = on ? UIKit.Green : new Color(0.6f, 0.6f, 0.6f);
-                    }
-                }
-                else
-                {
-                    int cost = GameManager.TechCosts[idx];
-                    bt.text = "SATIN AL  $" + B.Money(cost);
-                    btn.image.color = Game.gm.Money >= cost ? UIKit.Green : new Color(0.65f, 0.65f, 0.65f);
-                }
-            });
-        }
+        GameObject listP = UIKit.Panel(page, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 65f), new Vector2(1090f, 500f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        techRoot = listP.transform;
+        UIKit.Btn(page, new Vector2(-200f, -220f), new Vector2(150f, 54f), UIKit.Blue, "< ONCEKI", 16, delegate { techPage = Mathf.Max(0, techPage - 1); RebuildTechPage(); });
+        UIKit.Btn(page, new Vector2(200f, -220f), new Vector2(150f, 54f), UIKit.Blue, "SONRAKI >", 16, delegate { techPage++; RebuildTechPage(); });
+        GameObject pt = UIKit.Panel(page, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 107f), new Vector2(200f, 40f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        techPageText = UIKit.Label(pt.transform, "", 17, UIKit.TextDark, TextAnchor.MiddleCenter);
+        refreshers.Add(RebuildTechPage);
 
         // remote shop open/close (needs the UZAKTAN KONTROL tech)
-        Button shopBtn = UIKit.Btn(page, new Vector2(0f, -295f), new Vector2(500f, 58f), UIKit.Orange, "", 19,
+        Button shopBtn = UIKit.Btn(page, new Vector2(0f, -295f), new Vector2(350f, 58f), UIKit.Orange, "", 19,
             delegate
             {
                 if (!Game.gm.techOwned[3]) { Sfx.Play(Snd.Drop, 0.3f); return; }
@@ -314,11 +280,84 @@ public class PCScreen : MonoBehaviour
                 RefreshAll();
             });
         Text sbt = shopBtn.GetComponentInChildren<Text>();
+
+        // auto shop times UI (visible only if tech 5 is owned)
+        GameObject autoPanel = UIKit.Panel(page, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(360f, -295f), new Vector2(320f, 60f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        Text openTxt = UIKit.Label(autoPanel.transform, "", 16, UIKit.TextDark, TextAnchor.MiddleLeft);
+        openTxt.rectTransform.anchoredPosition = new Vector2(-150f, 15f);
+        Text closeTxt = UIKit.Label(autoPanel.transform, "", 16, UIKit.TextDark, TextAnchor.MiddleLeft);
+        closeTxt.rectTransform.anchoredPosition = new Vector2(-150f, -15f);
+
+        UIKit.Btn(autoPanel.transform, new Vector2(0f, 15f), new Vector2(40f, 30f), UIKit.Blue, "-", 14, delegate { if(Game.gm.autoOpenTime > 5) Game.gm.autoOpenTime--; RefreshAll(); });
+        UIKit.Btn(autoPanel.transform, new Vector2(45f, 15f), new Vector2(40f, 30f), UIKit.Blue, "+", 14, delegate { if(Game.gm.autoOpenTime < Game.gm.autoCloseTime - 1) Game.gm.autoOpenTime++; RefreshAll(); });
+        UIKit.Btn(autoPanel.transform, new Vector2(0f, -15f), new Vector2(40f, 30f), UIKit.Blue, "-", 14, delegate { if(Game.gm.autoCloseTime > Game.gm.autoOpenTime + 1) Game.gm.autoCloseTime--; RefreshAll(); });
+        UIKit.Btn(autoPanel.transform, new Vector2(45f, -15f), new Vector2(40f, 30f), UIKit.Blue, "+", 14, delegate { if(Game.gm.autoCloseTime < 24) Game.gm.autoCloseTime++; RefreshAll(); });
+
         refreshers.Add(delegate
         {
-            if (!Game.gm.techOwned[3]) { sbt.text = "DUKKAN KONTROLU (teknoloji gerekli)"; shopBtn.image.color = new Color(0.6f, 0.6f, 0.6f); }
+            if (!Game.gm.techOwned[3]) { sbt.text = "DUKKAN (teknoloji gerekli)"; shopBtn.image.color = new Color(0.6f, 0.6f, 0.6f); }
             else { sbt.text = Game.gm.shopOpen ? "DUKKANI KAPAT" : "DUKKANI AC"; shopBtn.image.color = Game.gm.shopOpen ? UIKit.Red : UIKit.Green; }
+            
+            autoPanel.SetActive(Game.gm.techOwned[5] && Game.gm.techEnabled[5]);
+            openTxt.text = "Acilis: " + Game.gm.autoOpenTime.ToString("00") + ":00";
+            closeTxt.text = "Kapanis: " + Game.gm.autoCloseTime.ToString("00") + ":00";
         });
+    }
+
+    void RebuildTechPage()
+    {
+        if (techRoot == null) return;
+        for (int i = techRoot.childCount - 1; i >= 0; i--) Destroy(techRoot.GetChild(i).gameObject);
+        int perPage = 4;
+        int total = TechNames.Length;
+        int maxPage = Mathf.Max(0, (total - 1) / perPage);
+        techPage = Mathf.Clamp(techPage, 0, maxPage);
+        if (techPageText != null) techPageText.text = "Sayfa " + (techPage + 1) + "/" + (maxPage + 1);
+        int start = techPage * perPage;
+        for (int n = 0; n < perPage; n++)
+        {
+            int idx = start + n;
+            if (idx >= total) break;
+            float y = 180f - n * 115f;
+            GameObject card = UIKit.Panel(techRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(1050f, 108f), Color.white, true, true);
+            UIKit.Icon(card.transform, UIKit.Circle(), new Vector2(0f, 0.5f), new Vector2(56f, 0f), new Vector2(56f, 56f), new Color(0.3f, 0.7f, 0.75f));
+            GameObject la = UIKit.Panel(card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(100f, 0f), new Vector2(560f, 96f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            UIKit.Label(la.transform, TechNames[idx] + "\n" + TechDescs[idx], 16, UIKit.TextDark, TextAnchor.MiddleLeft);
+            int spc = idx;
+            Button btn = UIKit.Btn(card.transform, new Vector2(380f, 0f), new Vector2(230f, 56f), UIKit.Green, "", 17,
+                delegate
+                {
+                    if (!Game.gm.techOwned[spc])
+                    {
+                        if (Game.gm.TryBuyTech(spc)) RefreshAll();
+                        else Sfx.Play(Snd.Drop, 0.3f);
+                    }
+                    else if (spc != 3) // owned techs can be toggled on/off (except 3 which is just shop open/close base logic, wait auto shop is toggled so it's fine)
+                    {
+                        Game.gm.techEnabled[spc] = !Game.gm.techEnabled[spc];
+                        Sfx.Play(Snd.Tick, 0.4f);
+                        RefreshAll();
+                    }
+                });
+            Text bt = btn.GetComponentInChildren<Text>();
+            
+            if (Game.gm.techOwned[spc])
+            {
+                if (spc == 3) { bt.text = "AKTIF"; btn.image.color = new Color(0.65f, 0.65f, 0.65f); }
+                else
+                {
+                    bool on = Game.gm.techEnabled[spc];
+                    bt.text = on ? "ACIK (kapat)" : "KAPALI (ac)";
+                    btn.image.color = on ? UIKit.Green : new Color(0.6f, 0.6f, 0.6f);
+                }
+            }
+            else
+            {
+                int cost = GameManager.TechCosts[spc];
+                bt.text = "SATIN AL  $" + B.Money(cost);
+                btn.image.color = Game.gm.Money >= cost ? UIKit.Green : new Color(0.65f, 0.65f, 0.65f);
+            }
+        }
     }
 
     // ---------- first-time shop naming ----------
@@ -327,6 +366,18 @@ public class PCScreen : MonoBehaviour
     {
         GameObject header = UIKit.Panel(page, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -8f), new Vector2(1080f, 70f), new Color(1f, 0.95f, 0.82f), true, true);
         revHeaderText = UIKit.Label(header.transform, "", 22, new Color(0.7f, 0.5f, 0.1f), TextAnchor.MiddleCenter);
+        revHeaderText.rectTransform.offsetMin = new Vector2(20f, 0f);
+        revHeaderText.rectTransform.offsetMax = new Vector2(-260f, 0f);
+        revHeaderStars = new Image[5];
+        for (int i = 0; i < revHeaderStars.Length; i++)
+        {
+            GameObject star = UIKit.Icon(header.transform, UIKit.Star(), new Vector2(1f, 0.5f),
+                new Vector2(-212f + i * 38f, 0f), new Vector2(30f, 30f), ReviewStarEmpty);
+            Shadow shadow = star.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0.45f, 0.28f, 0.05f, 0.2f);
+            shadow.effectDistance = new Vector2(0f, -2f);
+            revHeaderStars[i] = star.GetComponent<Image>();
+        }
         GameObject listP = UIKit.Panel(page, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(1080f, 500f), new Color(0f, 0f, 0f, 0.001f), false, false);
         revRoot = listP.transform;
         UIKit.Btn(page, new Vector2(-200f, -305f), new Vector2(150f, 54f), UIKit.Blue, "< ONCEKI", 16, delegate { revPage = Mathf.Max(0, revPage - 1); RebuildReviews(); });
@@ -334,11 +385,26 @@ public class PCScreen : MonoBehaviour
         refreshers.Add(RebuildReviews);
     }
 
-    static string StarStr(int n)
+    static readonly Color ReviewStarFilled = new Color(1f, 0.72f, 0.08f);
+    static readonly Color ReviewStarEmpty = new Color(0.82f, 0.79f, 0.72f);
+
+    static void AddReviewStars(Transform parent, int rating)
     {
-        string s = "";
-        for (int i = 0; i < 5; i++) s += i < n ? "*" : "-";
-        return s;
+        for (int i = 0; i < 5; i++)
+        {
+            GameObject star = UIKit.Icon(parent, UIKit.Star(), new Vector2(0f, 0.5f),
+                new Vector2(252f + i * 28f, 0f), new Vector2(23f, 23f), i < rating ? ReviewStarFilled : ReviewStarEmpty);
+            if (i < rating)
+            {
+                Shadow shadow = star.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0.45f, 0.28f, 0.05f, 0.22f);
+                shadow.effectDistance = new Vector2(0f, -1.5f);
+            }
+        }
+
+        GameObject score = UIKit.Panel(parent, new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(420f, 0f), new Vector2(54f, 26f), new Color(1f, 0.93f, 0.72f), true, false);
+        UIKit.Label(score.transform, rating + "/5", 14, new Color(0.65f, 0.4f, 0.05f), TextAnchor.MiddleCenter);
     }
 
     void RebuildReviews()
@@ -346,7 +412,13 @@ public class PCScreen : MonoBehaviour
         if (revRoot == null) return;
         for (int i = revRoot.childCount - 1; i >= 0; i--) Destroy(revRoot.GetChild(i).gameObject);
         if (revHeaderText != null)
-            revHeaderText.text = "Toplam " + Game.gm.reviewCount + " yorum   -   Ortalama " + Game.gm.AvgStars.ToString("0.0") + " / 5 yildiz  " + StarStr(Mathf.RoundToInt(Game.gm.AvgStars));
+            revHeaderText.text = "Toplam " + Game.gm.reviewCount + " yorum   -   Ortalama " + Game.gm.AvgStars.ToString("0.0") + " / 5";
+        if (revHeaderStars != null)
+        {
+            int roundedAverage = Mathf.RoundToInt(Game.gm.AvgStars);
+            for (int i = 0; i < revHeaderStars.Length; i++)
+                if (revHeaderStars[i] != null) revHeaderStars[i].color = i < roundedAverage ? ReviewStarFilled : ReviewStarEmpty;
+        }
         int perPage = 5;
         int total = Reviews.recent.Count;
         int maxPage = Mathf.Max(0, (total - 1) / perPage);
@@ -367,7 +439,9 @@ public class PCScreen : MonoBehaviour
             GameObject row = UIKit.Panel(revRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(1060f, 86f), Color.white, true, false);
             UIKit.Icon(row.transform, UIKit.Circle(), new Vector2(0f, 0.5f), new Vector2(46f, 0f), new Vector2(52f, 52f), UIKit.Blue);
             GameObject top = UIKit.Panel(row.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(84f, -8f), new Vector2(920f, 30f), new Color(0f, 0f, 0f, 0.001f), false, false);
-            UIKit.Label(top.transform, r.author + "    " + StarStr(r.stars), 17, new Color(0.85f, 0.6f, 0.1f), TextAnchor.MiddleLeft);
+            GameObject authorArea = UIKit.Panel(top.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(220f, 30f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            UIKit.Label(authorArea.transform, r.author, 17, new Color(0.85f, 0.52f, 0.08f), TextAnchor.MiddleLeft);
+            AddReviewStars(top.transform, r.stars);
             GameObject bot = UIKit.Panel(row.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(84f, 10f), new Vector2(920f, 34f), new Color(0f, 0f, 0f, 0.001f), false, false);
             UIKit.Label(bot.transform, r.text, 16, UIKit.TextDark, TextAnchor.MiddleLeft);
         }
@@ -585,6 +659,7 @@ public class PCScreen : MonoBehaviour
             Button btn = UIKit.Btn(card.transform, new Vector2(0f, -60f), new Vector2(260f, 52f), UIKit.Green, "", 17,
                 delegate
                 {
+                    if (idx == 6 && !Game.gm.decorOwned[8]) { Sfx.Play(Snd.Drop, 0.3f); return; } // Iskele required for Ramp
                     if (!Game.gm.decorOwned[idx] && Game.gm.TrySpend(DecorInfo.Costs[idx]))
                     {
                         Game.gm.decorOwned[idx] = true;
@@ -598,6 +673,11 @@ public class PCScreen : MonoBehaviour
             refreshers.Add(delegate
             {
                 if (Game.gm.decorOwned[idx]) { bt.text = "SAHIPSIN"; btn.image.color = new Color(0.65f, 0.65f, 0.65f); }
+                else if (idx == 6 && !Game.gm.decorOwned[8])
+                {
+                    bt.text = "ISKELE GEREKLI";
+                    btn.image.color = UIKit.Orange;
+                }
                 else
                 {
                     bt.text = "$" + B.Money(DecorInfo.Costs[idx]);

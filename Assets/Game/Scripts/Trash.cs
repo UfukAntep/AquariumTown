@@ -147,7 +147,8 @@ public class TrashSystem : MonoBehaviour
         if (Game.gm == null) return;
         float dt = Time.deltaTime;
 
-        // customers drop litter beneath them
+        // Inside the shop customers only leave poop. Food litter is reserved for
+        // the beach visitor system, so the two kinds of dirt read differently.
         poopTimer -= dt;
         if (poopTimer <= 0f)
         {
@@ -159,7 +160,7 @@ public class TrashSystem : MonoBehaviour
                 {
                     Vector3 pos = custs[Random.Range(0, custs.Length)].transform.position;
                     pos.y = 0f;
-                    landItems.Add(TrashItem.Create(pos, false, Random.value < 0.45f));
+                    landItems.Add(TrashItem.Create(pos, false, true));
                     if (Count == 4 && Game.ui != null)
                         Game.ui.Toast("Magaza kirleniyor! Musteriler rahatsiz olabilir.");
                 }
