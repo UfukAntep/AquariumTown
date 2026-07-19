@@ -22,7 +22,7 @@ public class CameraRig : MonoBehaviour
         GameObject camGo = new GameObject("Main Camera");
         camGo.tag = "MainCamera";
         Camera cam = camGo.AddComponent<Camera>();
-        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.clearFlags = CameraClearFlags.Skybox;
         cam.backgroundColor = new Color(0.55f, 0.8f, 0.95f);
         cam.fieldOfView = 48f;
         cam.nearClipPlane = 0.2f;
@@ -36,6 +36,24 @@ public class CameraRig : MonoBehaviour
 
     public bool IsTPS { get { return mode == Mode.TPS; } }
     public float TPSYaw { get { return tpsYaw; } }
+
+    public void TogglePlayerMode()
+    {
+        if (mode == Mode.PC) return;
+        mode = mode == Mode.TPS ? Mode.TopDown : Mode.TPS;
+        if (mode == Mode.TPS)
+        {
+            tpsYaw = Game.player != null && Game.player.visual != null ? Game.player.visual.eulerAngles.y : 0f;
+            tpsPitch = 16f;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
 
     public void Shake(float amp, float time) { shakeAmp = amp; shakeTime = time; }
 
@@ -63,22 +81,11 @@ public class CameraRig : MonoBehaviour
 
     void Update()
     {
-        if (mode != Mode.PC && Input.GetKeyDown(KeyCode.U) &&
+        if (mode != Mode.PC && Input.GetKeyDown(KeyCode.C) &&
             (Game.ui == null || !Game.ui.AnyMenuOpen))
         {
-            mode = mode == Mode.TPS ? Mode.TopDown : Mode.TPS;
-            if (mode == Mode.TPS)
-            {
-                tpsYaw = Game.player != null && Game.player.visual != null ? Game.player.visual.eulerAngles.y : 0f;
-                tpsPitch = 16f;
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-            }
-            else
-            {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }
+            if (Game.ui != null) Game.ui.HideCameraTutorial();
+            TogglePlayerMode();
         }
 
         // GTA-style free orbit: mouse controls yaw + pitch

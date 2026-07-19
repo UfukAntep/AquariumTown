@@ -5,7 +5,6 @@ using UnityEngine.Playables;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
-
 // Loads the user's imported "ithappy" packs (City Characters + Casual Food).
 // Falls back to primitive visuals when assets are unavailable.
 public static class AssetLib
@@ -39,6 +38,17 @@ public static class AssetLib
     {
         if (inited) return;
         inited = true;
+        RuntimeAssetCatalog catalog = GameAssets.Catalog;
+        if (catalog != null && catalog.fishPrefabs != null)
+        {
+            for (int i = 0; i < catalog.fishPrefabs.Length; i++)
+            {
+                GameObject prefab = catalog.fishPrefabs[i];
+                if (prefab == null) continue;
+                seaAnimals.Add(prefab);
+                seaAnimalNames.Add(NiceRuntimeName(prefab.name));
+            }
+        }
 #if UNITY_EDITOR
         LoadFolder("Assets/ithappy/City_Characters/Prefabs/Characters", characters);
         LoadFolder("Assets/ithappy/Casual_Food/Prefabs", foods, false, new string[] { "cocktail_005" });
@@ -52,15 +62,41 @@ public static class AssetLib
         string[] aquatic = { "Clownfish", "Crab", "Dolphin", "Lobster", "Orca", "SeaHorse", "Seahorse",
             "Arowana", "Carp", "Crocodile", "Frog", "Manatee", "Turtle", "Shark", "Ray", "Salmon",
             "Squid", "Octopus", "Puffer", "Betta", "Koi", "Piranha", "Catfish", "Angelfish" };
-        LoadFolderWhitelist("Assets/Quirky Series/Ultimate Pack Vol.1/Mega Pack Vol.2/Sea Vol.1/Prefabs", seaAnimals, aquatic);
-        LoadFolderWhitelist("Assets/Quirky Series/Ultimate Pack Vol.1/Mega Pack Vol.2/River Vol.1/Prefabs", seaAnimals, aquatic);
+        if (seaAnimals.Count == 0)
+        {
+            LoadFolderWhitelist("Assets/Quirky Series/Ultimate Pack Vol.1/Mega Pack Vol.2/Sea Vol.1/Prefabs", seaAnimals, aquatic);
+            LoadFolderWhitelist("Assets/Quirky Series/Ultimate Pack Vol.1/Mega Pack Vol.2/River Vol.1/Prefabs", seaAnimals, aquatic);
+        }
 
         // PinkTea cash + IgniteCoders water
         cashPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PinkTea/3D Cartoon Safe Pack/Prefabs/Cash.prefab");
-        waterMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/IgniteCoders/Simple Water Shader/Resources/Water_mat_01.mat");
+        waterMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/IgniteCoders/Simple Water Shader/Resources/Water_mat_04.mat");
         if (waterMaterial == null)
-            waterMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/IgniteCoders/Simple Water Shader/Resources/Water_mat_02.mat");
+            waterMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/IgniteCoders/Simple Water Shader/Resources/Water_mat_01.mat");
 #endif
+        // This material already lives in a Resources folder, so it is also
+        // available in players where AssetDatabase does not exist.
+        if (waterMaterial == null) waterMaterial = Resources.Load<Material>("Water_mat_04");
+        if (waterMaterial == null) waterMaterial = Resources.Load<Material>("Water_mat_01");
+    }
+
+    static string NiceRuntimeName(string file)
+    {
+        string f = file.ToLowerInvariant();
+        if (f.Contains("clownfish")) return "Palyaco Baligi";
+        if (f.Contains("seahorse")) return "Denizati";
+        if (f.Contains("turtle")) return "Kaplumbaga";
+        if (f.Contains("crab")) return "Yengec";
+        if (f.Contains("lobster")) return "Istakoz";
+        if (f.Contains("dolphin")) return "Yunus";
+        if (f.Contains("orca")) return "Katil Balina";
+        if (f.Contains("arowana")) return "Arowana";
+        if (f.Contains("carp")) return "Sazan";
+        if (f.Contains("crocodile")) return "Timsah";
+        if (f.Contains("frog")) return "Kurbaga";
+        if (f.Contains("manatee")) return "Deniz Inegi";
+        if (f.Contains("squid")) return "Kalamar";
+        return file;
     }
 
 #if UNITY_EDITOR
@@ -229,7 +265,8 @@ public static class AssetLib
     // Built-in Standard materials render pink in URP -> clone into URP Lit.
     public static void FixMaterials(GameObject go)
     {
-        Shader urp = Shader.Find("Universal Render Pipeline/Lit");
+        Material runtimeLit = Resources.Load<Material>("RuntimeLit");
+        Shader urp = runtimeLit != null ? runtimeLit.shader : Shader.Find("Universal Render Pipeline/Lit");
         if (urp == null) return;
         Renderer[] rends = go.GetComponentsInChildren<Renderer>(true);
         for (int r = 0; r < rends.Length; r++)
@@ -271,7 +308,8 @@ public static class AssetLib
     // their texture colours stay bright both in the lake and in aquariums.
     static void FixSeaAnimalMaterials(GameObject go)
     {
-        Shader urp = Shader.Find("Universal Render Pipeline/Lit");
+        Material runtimeLit = Resources.Load<Material>("RuntimeLit");
+        Shader urp = runtimeLit != null ? runtimeLit.shader : Shader.Find("Universal Render Pipeline/Lit");
         if (urp == null) return;
         Renderer[] rends = go.GetComponentsInChildren<Renderer>(true);
         for (int r = 0; r < rends.Length; r++)
@@ -291,6 +329,11 @@ public static class AssetLib
                     if (tex == null && src.HasProperty("_BaseColorMap")) tex = src.GetTexture("_BaseColorMap");
                     if (fixedMat.HasProperty("_BaseMap")) fixedMat.SetTexture("_BaseMap", tex);
                     fixedMat.SetColor("_BaseColor", Color.white);
+                    if (fixedMat.HasProperty("_EmissionColor"))
+                    {
+                        fixedMat.EnableKeyword("_EMISSION");
+                        fixedMat.SetColor("_EmissionColor", new Color(0.12f, 0.12f, 0.12f));
+                    }
                     fixedMat.SetFloat("_Surface", 0f);
                     fixedMat.SetFloat("_Smoothness", 0.25f);
                     fixedMat.SetFloat("_ZWrite", 1f);
@@ -300,8 +343,8 @@ public static class AssetLib
                 mats[i] = fixedMat;
             }
             rends[r].sharedMaterials = mats;
-            rends[r].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            rends[r].receiveShadows = true;
+            rends[r].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rends[r].receiveShadows = false;
         }
     }
 

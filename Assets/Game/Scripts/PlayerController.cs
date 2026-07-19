@@ -12,9 +12,11 @@ public class PlayerController : MonoBehaviour
     CharacterController cc;
     List<Fish> carried = new List<Fish>();
     List<TrashItem> heldTrash = new List<TrashItem>();
+    GameObject trashGuideArrow;
     TextMesh carryText;
     float depositTimer;
     bool wasSwimming;
+    float attackCooldown;
 
     // radar
     Fish target;
@@ -26,6 +28,7 @@ public class PlayerController : MonoBehaviour
     bool launched;
     Vector3 launchFrom, launchTo;
     float launchT;
+    float launchHeight = 4f;
 
     // joystick
     Vector2 dragOrigin;
@@ -128,18 +131,21 @@ public class PlayerController : MonoBehaviour
         return Vector2.ClampMagnitude(mv, 1f);
     }
 
-    public void LaunchTo(Vector3 to)
+    public void LaunchTo(Vector3 to, float height = 4f)
     {
         launched = true;
         launchFrom = transform.position;
         launchTo = to;
         launchT = 0f;
-        Sfx.Play(Snd.Splash, 0.6f);
+        launchHeight = height;
+        Sfx.Play(Snd.Throw, 0.75f);
     }
 
     // Shark attack: lose carried fish + some money, get tossed back to the beach.
     public void SharkHit()
     {
+        Jetski hitJetski = jetski;
+        if (hitJetski != null) hitJetski.BreakFromShark();
         for (int i = 0; i < carried.Count; i++)
             if (carried[i] != null) carried[i].Die();
         carried.Clear();
@@ -155,13 +161,14 @@ public class PlayerController : MonoBehaviour
     {
         if (Game.gm == null) return;
         float dt = Time.deltaTime;
+        attackCooldown -= dt;
 
         if (launched)
         {
             launchT += dt / 0.9f;
             if (launchT >= 1f) launched = false;
             cc.enabled = false;
-            transform.position = B.Parabola(launchFrom, launchTo, 4f, Mathf.Clamp01(launchT));
+            transform.position = B.Parabola(launchFrom, launchTo, launchHeight, Mathf.Clamp01(launchT));
             cc.enabled = true;
             visual.Rotate(Vector3.right, 500f * dt);
             return;
@@ -172,6 +179,7 @@ public class PlayerController : MonoBehaviour
         // entering the sea after midnight = shark-infested waters!
         if (Swimming && !wasSwimming && Game.sea.SharkNight && Game.ui != null)
             Game.ui.Toast("GECE DENIZI TEHLIKELI! Sadece kopekbaliklari var, cikmadan saldirirlar!");
+        if (Swimming && !wasSwimming) Sfx.Play(Snd.Splash, 0.45f);
 
         // carrying trash into the sea pollutes it!
         if (Swimming && !wasSwimming && heldTrash.Count > 0)
@@ -188,7 +196,7 @@ public class PlayerController : MonoBehaviour
         Vector3 dir = new Vector3(mv.x, 0f, mv.y);
         if (Game.cam != null && Game.cam.IsTPS)
             dir = Quaternion.Euler(0f, Game.cam.TPSYaw, 0f) * dir; // camera-relative TPS controls
-        float speed = Swimming ? Game.gm.SwimSpeed * (jetski != null ? 2.6f : 1f) : Game.gm.MoveSpeed;
+        float speed = Swimming ? (jetski != null ? Game.gm.MoveSpeed * Game.gm.JetskiSpeedMultiplier : Game.gm.SwimSpeed) : Game.gm.MoveSpeed;
         cc.Move((dir * speed + Vector3.down * 15f) * dt);
 
         if (dir.sqrMagnitude > 0.01f)
@@ -203,10 +211,59 @@ public class PlayerController : MonoBehaviour
         visual.localPosition = vlp;
 
         UpdateRadar(dt);
+        UpdateAttack();
         UpdateDeposits(dt);
         UpdateTrash();
         UpdateInteractions();
         UpdateCarryText();
+    }
+
+    void UpdateAttack()
+    {
+        if (attackCooldown > 0f || !Input.GetMouseButtonDown(0) ||
+            (Game.ui != null && Game.ui.AnyMenuOpen)) return;
+        attackCooldown = 0.48f;
+        StartCoroutine(PunchVisual());
+
+        Vector3 facing = visual != null ? visual.forward : transform.forward;
+        facing.y = 0f;
+        float best = 2.8f;
+        Thief hitThief = null;
+        Customer hitCustomer = null;
+        Thief[] thieves = FindObjectsByType<Thief>(FindObjectsSortMode.None);
+        for (int i = 0; i < thieves.Length; i++)
+        {
+            Vector3 to = thieves[i].transform.position - transform.position; to.y = 0f;
+            float d = to.magnitude;
+            if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
+            { best = d; hitThief = thieves[i]; hitCustomer = null; }
+        }
+        Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+        for (int i = 0; i < customers.Length; i++)
+        {
+            Vector3 to = customers[i].transform.position - transform.position; to.y = 0f;
+            float d = to.magnitude;
+            if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
+            { best = d; hitCustomer = customers[i]; hitThief = null; }
+        }
+
+        if (hitThief != null) hitThief.PlayerHit(transform.position);
+        else if (hitCustomer != null) hitCustomer.HitByPlayer(transform.position);
+        else Sfx.Play(Snd.Throw, 0.28f);
+    }
+
+    System.Collections.IEnumerator PunchVisual()
+    {
+        GameObject fist = B.Prim(PrimitiveType.Sphere, "Punch", visual, new Vector3(0.45f, 1.3f, 0.35f), Vector3.zero,
+            Vector3.one * 0.34f, MatLib.Get(new Color(1f, 0.72f, 0.55f)));
+        float t = 0f;
+        while (t < 1f && fist != null)
+        {
+            t += Time.deltaTime * 7f;
+            fist.transform.localPosition = new Vector3(0.45f, 1.3f, Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * 1.15f);
+            yield return null;
+        }
+        if (fist != null) Destroy(fist);
     }
 
     // ---------- E interactions + prompt ----------
@@ -218,7 +275,9 @@ public class PlayerController : MonoBehaviour
         bool menuOpen = Game.ui.AnyMenuOpen;
         if (!menuOpen)
         {
-            if (Game.register != null && Game.register.PlayerAtSpot)
+            if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
+                prompt = "E : Jetski tamir et  $" + B.Money(Game.jetski.RepairCost);
+            else if (Game.register != null && Game.register.PlayerAtSpot)
                 prompt = "E : PC'yi Ac";
             else if (GameBootstrap.NearGateSign(transform.position))
                 prompt = Game.gm.shopOpen ? "E : Dukkani KAPAT" : "E : Dukkani AC";
@@ -227,7 +286,11 @@ public class PlayerController : MonoBehaviour
 
         if (prompt != null && Input.GetKeyDown(KeyCode.E))
         {
-            if (Game.register != null && Game.register.PlayerAtSpot)
+            if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
+            {
+                Game.jetski.TryRepair();
+            }
+            else if (Game.register != null && Game.register.PlayerAtSpot)
             {
                 Game.ui.SetPrompt(null);
                 Game.cam.ZoomToPC(delegate { Game.pc.Open(); });
@@ -237,7 +300,7 @@ public class PlayerController : MonoBehaviour
                 Game.gm.shopOpen = !Game.gm.shopOpen;
                 GameBootstrap.UpdateGateBarrier();
                 Game.ui.Toast(Game.gm.shopOpen ? "Dukkan ACILDI! Musteriler gelebilir." : "Dukkan KAPATILDI. Musteri gelmeyecek.");
-                Sfx.Play(Snd.Buy, 0.5f);
+                Sfx.Play(Snd.ShopToggle, 0.65f);
             }
         }
     }
@@ -247,6 +310,23 @@ public class PlayerController : MonoBehaviour
     // the aim cone can be scanned, so aiming matters.
     void UpdateRadar(float dt)
     {
+        // Golden fish is an instant touch bonus and never needs an empty bag
+        // slot. This also fixes the old full-bag/radar deadlock.
+        if (Swimming && Game.sea != null)
+        {
+            Fish golden = Game.sea.FindGoldenNear(transform.position, 2.1f);
+            if (golden != null)
+            {
+                if (target == golden) { target.scanner = null; target = null; scanProgress = 0f; }
+                Game.sea.Remove(golden);
+                int bonus = 100 * Game.gm.Level;
+                Game.gm.AddMoney(bonus);
+                Game.ui.MoneyPunch();
+                Game.ui.Toast("ALTIN BALIK! +$" + B.Money(bonus));
+                Sfx.Play(Snd.Collect, 1f);
+                golden.Die();
+            }
+        }
         bool canScan = Swimming && !IsFull && (Game.ui == null || !Game.ui.AnyMenuOpen);
 
         // aim = facing direction
@@ -376,11 +456,11 @@ public class PlayerController : MonoBehaviour
             if (Vector3.Distance(transform.position, t.transform.position) > 4.2f) continue;
             int idx = FindCarried(t.species);
             if (idx < 0) continue;
+            if (!t.ReserveSlot()) continue;
             depositTimer = 0.13f;
             Fish f = carried[idx];
             carried.RemoveAt(idx);
             Reindex();
-            t.ReserveSlot();
             Fish captured = f;
             Tank tank = t;
             f.FlyTo(t.RandomWaterPoint(), delegate { if (captured != null) tank.Receive(captured); }, 0.5f);
@@ -427,7 +507,8 @@ public class PlayerController : MonoBehaviour
                 Game.trash.PickUp(t);
                 heldTrash.Add(t);
                 t.AttachTo(stackAnchor, carried.Count + heldTrash.Count - 1);
-                Sfx.Play(Snd.Drop, 0.4f);
+                Sfx.Play(Snd.TrashPickup, 0.45f);
+                StartTrashGuideIfNeeded();
             }
         }
 
@@ -437,8 +518,86 @@ public class PlayerController : MonoBehaviour
             for (int i = 0; i < heldTrash.Count; i++)
                 if (heldTrash[i] != null) heldTrash[i].DumpInto(Game.trash.BinPos);
             heldTrash.Clear();
-            Sfx.Play(Snd.Collect, 0.5f);
+            Sfx.Play(Snd.TrashDump, 0.65f);
+            CompleteTrashGuide();
         }
+
+        UpdateTrashGuide();
+    }
+
+    void StartTrashGuideIfNeeded()
+    {
+        if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1) return;
+        if (trashGuideArrow == null)
+        {
+            trashGuideArrow = new GameObject("TrashBinGuide");
+            TrashBinGuideArrow guide = trashGuideArrow.AddComponent<TrashBinGuideArrow>();
+            guide.player = transform;
+        }
+        if (Game.ui != null) Game.ui.ShowCameraTutorial();
+    }
+
+    void UpdateTrashGuide()
+    {
+        if (trashGuideArrow == null || Game.trash == null) return;
+        bool show = heldTrash.Count > 0 && PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 0;
+        trashGuideArrow.SetActive(show);
+    }
+
+    void CompleteTrashGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1) return;
+        PlayerPrefs.SetInt("AT3_BinTutorialDone", 1);
+        PlayerPrefs.Save();
+        if (trashGuideArrow != null) Destroy(trashGuideArrow);
+    }
+}
+
+public class TrashBinGuideArrow : MonoBehaviour
+{
+    public Transform player;
+    Transform arrowVisual;
+    TextMesh label;
+
+    void Start()
+    {
+        RuntimeAssetCatalog catalog = GameAssets.Catalog;
+        if (catalog != null && catalog.arrowPrefab != null)
+        {
+            GameObject model = Instantiate(catalog.arrowPrefab, transform, false);
+            model.name = "SyntyArrow";
+            model.transform.localScale = Vector3.one * 1.15f;
+            model.transform.localEulerAngles = new Vector3(0f, 0f, 0f);
+            AssetLib.FixMaterials(model);
+            arrowVisual = model.transform;
+        }
+        else
+        {
+            arrowVisual = new GameObject("ArrowVisual").transform;
+            arrowVisual.SetParent(transform, false);
+            Material green = MatLib.Get(new Color(0.28f, 1f, 0.35f));
+            B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
+                new Vector3(0.18f, 0.14f, 1.1f), green);
+            B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.28f, 0f, 0.92f), new Vector3(0f, 45f, 0f),
+                new Vector3(0.17f, 0.14f, 0.65f), green);
+            B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.28f, 0f, 0.92f), new Vector3(0f, -45f, 0f),
+                new Vector3(0.17f, 0.14f, 0.65f), green);
+        }
+        label = B.Text3D("", transform, new Vector3(0f, 0.85f, 0f), 0.095f, new Color(0.9f, 1f, 0.45f));
+    }
+
+    void Update()
+    {
+        if (player == null || Game.trash == null) { Destroy(gameObject); return; }
+        Vector3 to = Game.trash.BinPos - player.position;
+        to.y = 0f;
+        Vector3 dir = to.sqrMagnitude > 0.01f ? to.normalized : Vector3.forward;
+        float travel = Mathf.PingPong(Time.time * 1.8f, 0.8f);
+        transform.position = player.position + Vector3.up * (3.2f + Mathf.Sin(Time.time * 4f) * 0.18f) + dir * travel;
+        transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+        if (arrowVisual != null)
+            arrowVisual.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 6f) * 0.12f);
+        if (label != null) label.text = Loc.T("TRASH_BIN") + "  " + Mathf.CeilToInt(to.magnitude) + "m";
     }
 }
 

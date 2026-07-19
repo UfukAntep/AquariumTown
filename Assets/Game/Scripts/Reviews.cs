@@ -42,4 +42,14 @@ public static class Reviews
         recent.Insert(0, r);
         if (recent.Count > 40) recent.RemoveAt(recent.Count - 1);
     }
+
+    public static void AddAttacked()
+    {
+        Review r = new Review();
+        r.stars = 1;
+        r.author = authors[Random.Range(0, authors.Length)];
+        r.text = "Dukkan sahibi bana vurdu! Bir daha asla gelmem.";
+        recent.Insert(0, r);
+        if (recent.Count > 40) recent.RemoveAt(recent.Count - 1);
+    }
 }

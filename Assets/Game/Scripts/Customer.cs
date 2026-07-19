@@ -24,6 +24,7 @@ public class Customer : MonoBehaviour
         GameObject go = new GameObject("Customer");
         go.transform.position = DoorPos + new Vector3(Random.Range(-1f, 3f), 0f, Random.Range(-1.5f, 1.5f));
         Customer c = go.AddComponent<Customer>();
+        if (Game.gm != null) Game.gm.RegisterCustomerArrival();
         c.Build();
         return c;
     }
@@ -32,6 +33,9 @@ public class Customer : MonoBehaviour
     bool bought;        // successfully purchased -> happy review
     bool reviewed;
     bool toiletChecked;
+    bool attacked;
+    float knockTime;
+    Vector3 knockVelocity;
 
     void LeaveReview(bool happy)
     {
@@ -81,6 +85,59 @@ public class Customer : MonoBehaviour
         return false;
     }
 
+    public void HitByPlayer(Vector3 attackerPos)
+    {
+        if (attacked || state == CState.Exit || state == CState.ExitSad) return;
+        attacked = true;
+        ReturnHeldFish();
+        if (Game.register != null) Game.register.Leave(this);
+        if (Game.gm != null)
+        {
+            Game.gm.AddSatisfaction(-12f);
+            Game.gm.AddOneStarReview();
+        }
+        reviewed = true;
+        bubble.text = "Bana vurdu! Bir daha gelmem!";
+        bubble.color = new Color(1f, 0.35f, 0.3f);
+        LaunchAway(attackerPos, 7f);
+        speed = 6f;
+        state = CState.ExitSad;
+        moveTarget = DoorPos;
+    }
+
+    public void HitByThief(Vector3 attackerPos)
+    {
+        if (state == CState.Exit || state == CState.ExitSad) return;
+        ReturnHeldFish();
+        if (Game.register != null) Game.register.Leave(this);
+        bubble.text = "Imdat!";
+        bubble.color = new Color(1f, 0.45f, 0.3f);
+        LaunchAway(attackerPos, 6f);
+        speed = 5.5f;
+        state = CState.ExitSad;
+        moveTarget = DoorPos;
+    }
+
+    void ReturnHeldFish()
+    {
+        if (holdingPrice > 0)
+        {
+            Game.ReturnFishToStorage(holdingSpecies);
+            holdingPrice = 0;
+        }
+        HideBowl();
+    }
+
+    void LaunchAway(Vector3 from, float force)
+    {
+        Vector3 away = transform.position - from;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = Vector3.back;
+        knockVelocity = away.normalized * force;
+        knockTime = 0.55f;
+        Sfx.Play(Snd.Punch, 0.75f);
+    }
+
     void ShowBowl(int sp)
     {
         bowl = new GameObject("Bowl");
@@ -98,13 +155,21 @@ public class Customer : MonoBehaviour
     {
         if (Game.gm == null || Game.register == null) return; // scene restarting
         float dt = Time.deltaTime;
+        if (knockTime > 0f)
+        {
+            knockTime -= dt;
+            transform.position += knockVelocity * dt + Vector3.up * Mathf.Sin((0.55f - knockTime) / 0.55f * Mathf.PI) * 3f * dt;
+            knockVelocity = Vector3.Lerp(knockVelocity, Vector3.zero, dt * 3f);
+            visual.Rotate(Vector3.right, 520f * dt);
+            return;
+        }
         switch (state)
         {
             case CState.Enter:
                 if (MoveTo(moveTarget, dt))
                 {
                     // maybe visit the toilet first
-                    if (Game.toilets != null && Game.toilets.HasCleanUnit && Random.value < 0.25f)
+                    if (Game.toilets != null && Game.toilets.HasCleanUnit && Random.value < 0.58f)
                     {
                         moveTarget = Game.toilets.EntrancePos;
                         state = CState.ToToilet;
@@ -183,13 +248,12 @@ public class Customer : MonoBehaviour
                         if (Random.value < Game.gm.TipChance)
                         {
                             holdingPrice = Mathf.RoundToInt(holdingPrice * 1.5f);
-                            bubble.text = "Bahsis! $" + holdingPrice;
+                            bubble.text = "Bahsis!";
                             bubble.color = new Color(1f, 0.9f, 0.4f);
                         }
                         else
                         {
-                            bubble.text = "$" + holdingPrice;
-                            bubble.color = new Color(0.6f, 1f, 0.6f);
+                            bubble.text = "";
                         }
                         Game.register.Join(this);
                         queueWait = 0f;
@@ -207,8 +271,7 @@ public class Customer : MonoBehaviour
                 {
                     // waited too long -> puts the fish back and leaves angry
                     Game.register.Leave(this);
-                    Tank t = Game.TankOf(holdingSpecies);
-                    if (t != null) t.AddCount(1);
+                    Game.ReturnFishToStorage(holdingSpecies);
                     HideBowl();
                     bubble.text = "Ilgilenen yok!";
                     bubble.color = new Color(1f, 0.45f, 0.35f);

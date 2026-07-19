@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Species aquarium: no capacity limit. Only a handful of fish are shown swimming,
-// the rest are counted (extraCount). Can be leveled up (decor + price bonus) and
-// can break during earthquakes.
+// Species aquarium with level-based capacity. Reservations count toward capacity
+// so several workers cannot overfill the same tank while fish are in flight.
 public class Tank : MonoBehaviour
 {
     const int VisualCap = 8;
@@ -20,7 +19,8 @@ public class Tank : MonoBehaviour
     float repairTime; // repairs are FREE: just stand next to the tank
 
     public int Count { get { return visualFish.Count + extraCount; } }
-    public bool HasSpace { get { return !broken; } }
+    public int MaxCapacity { get { return Game.gm != null ? Game.gm.TankCapacity(species) : 5; } }
+    public bool HasSpace { get { return !broken && Count + incoming < MaxCapacity; } }
     public bool HasStock { get { return !broken && Count > 0; } }
     public Vector3 FrontPoint { get { return transform.position + new Vector3(0f, 0f, -3f); } }
     const float RepairDuration = 3f;
@@ -111,8 +111,9 @@ public class Tank : MonoBehaviour
         else
         {
             int lvl = Game.gm != null ? Game.gm.tankLevel[species] : 1;
-            stockText.text = Count.ToString() + (lvl > 1 ? "  (Sv" + lvl + ")" : "");
-            stockText.color = Count == 0 ? new Color(1f, 0.5f, 0.4f) : Color.white;
+            stockText.text = Count + " / " + MaxCapacity + (lvl > 1 ? "  (Sv" + lvl + ")" : "");
+            stockText.color = Count == 0 ? new Color(1f, 0.5f, 0.4f) :
+                (Count >= MaxCapacity ? new Color(1f, 0.85f, 0.25f) : Color.white);
         }
     }
 
@@ -123,12 +124,26 @@ public class Tank : MonoBehaviour
         return new Vector3(b.center.x + c.x, Random.Range(b.min.y, b.max.y), b.center.z + c.y);
     }
 
-    public void ReserveSlot() { incoming++; }
+    public bool ReserveSlot()
+    {
+        if (!HasSpace) return false;
+        incoming++;
+        return true;
+    }
 
     public void Receive(Fish f)
     {
         incoming = Mathf.Max(0, incoming - 1);
         if (broken) { f.Die(); return; }
+        if (Count >= MaxCapacity)
+        {
+            // Defensive fallback. Normal delivery paths reserve first, but this
+            // keeps capacity strict if a future caller forgets to do so.
+            if (Game.depot != null && Game.depot.HasSpace) Game.depot.Store(f.species);
+            f.Die();
+            UpdateText();
+            return;
+        }
         if (visualFish.Count < VisualCap)
         {
             visualFish.Add(f);
@@ -145,6 +160,7 @@ public class Tank : MonoBehaviour
 
     public void AddSaved(int n)
     {
+        n = Mathf.Min(n, MaxCapacity);
         for (int i = 0; i < n; i++)
         {
             if (visualFish.Count < VisualCap)
@@ -158,7 +174,13 @@ public class Tank : MonoBehaviour
         UpdateText();
     }
 
-    public void AddCount(int n) { extraCount += n; UpdateText(); }
+    public int AddCount(int n)
+    {
+        int accepted = Mathf.Clamp(n, 0, Mathf.Max(0, MaxCapacity - Count));
+        extraCount += accepted;
+        UpdateText();
+        return accepted;
+    }
 
     public int TakeForCustomer()
     {
@@ -182,6 +204,7 @@ public class Tank : MonoBehaviour
     {
         if (broken) return;
         broken = true;
+        Sfx.Play(Snd.GlassBreak, 0.9f);
         repairTime = 0f;
         glassGo.transform.localEulerAngles = new Vector3(12f, 0f, 8f);
         crackGo = B.Prim(PrimitiveType.Cube, "Crack", transform, new Vector3(0f, 1.7f, -1.9f), new Vector3(0f, 0f, 35f),
@@ -232,13 +255,13 @@ public class Tank : MonoBehaviour
         broken = false;
         glassGo.transform.localEulerAngles = Vector3.zero;
         if (crackGo != null) Destroy(crackGo);
-        Sfx.Play(Snd.Buy);
+        Sfx.Play(Snd.Repair, 0.75f);
         // surviving floppers jump back in
         for (int i = 0; i < floppers.Count; i++)
         {
             Fish f = floppers[i];
             if (f == null) continue;
-            ReserveSlot();
+            if (!ReserveSlot()) continue;
             Tank self = this;
             f.FlyTo(RandomWaterPoint(), delegate { if (f != null) self.Receive(f); }, 0.6f);
         }

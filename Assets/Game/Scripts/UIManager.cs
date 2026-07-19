@@ -5,12 +5,15 @@ using UnityEngine.UI;
 // Cartoon-styled HUD + menus (uses UIKit for rounded panels, stars, pills).
 public class UIManager : MonoBehaviour
 {
-    Text moneyText, levelText, satText, clockText, dirtText, toastText, hintText, promptText, thiefText;
+    Text moneyText, levelText, satText, clockText, dirtText, capacityText, toastText, hintText, promptText, thiefText;
     RectTransform moneyRect, satRect;
     GameObject satRoot, promptRoot;
     Image satIcon;
-    GameObject toastGo, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo;
+    GameObject toastGo, cameraTutorialGo, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo;
     Text celebTitle, celebSub, infoTitle, infoBody;
+    GameObject infoTrophyVisual;
+    RectTransform infoBodyRect;
+    System.Action infoAction;
     GameObject celebModel;
     Camera celebCam;
     Transform celebStage;
@@ -23,6 +26,7 @@ public class UIManager : MonoBehaviour
     GameObject compassGo, minimapGo, mapGo, questGo;
     RectTransform compassRose, mapPlayerDot;
     Camera minimapCam;
+    RectTransform minimapThiefDot;
     Transform mapDynamic;
     Text[] questTexts = new Text[3];
     float questTimer;
@@ -70,28 +74,38 @@ public class UIManager : MonoBehaviour
 
         // ----- top-right: money / satisfaction / clock pills -----
         GameObject moneyRoot;
-        moneyText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -16f), new Vector2(220f, 56f), UIKit.Cream, UIKit.Green, "$", out moneyRoot);
+        moneyText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -16f), new Vector2(220f, 56f), UIKit.Cream, UIKit.Green, "$", out moneyRoot);
         moneyRect = moneyRoot.GetComponent<RectTransform>();
 
-        satText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -80f), new Vector2(220f, 50f), UIKit.Cream, UIKit.Green, "", out satRoot);
+        satText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -80f), new Vector2(220f, 50f), UIKit.Cream, UIKit.Green, "", out satRoot);
         satRect = satRoot.GetComponent<RectTransform>();
         satIcon = satRoot.transform.GetChild(0).GetComponent<Image>();
-        UIKit.Label(satRoot.transform.GetChild(0), ":)", 22, Color.white, TextAnchor.MiddleCenter, true);
+        Sprite satisfactionIcon = GameAssets.TabIcon(8);
+        if (satisfactionIcon != null) UIKit.Icon(satRoot.transform.GetChild(0), satisfactionIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(28f, 28f), Color.white);
 
         GameObject clockRoot;
-        clockText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -138f), new Vector2(220f, 46f), UIKit.Cream, UIKit.Blue, "T", out clockRoot);
+        clockText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -138f), new Vector2(220f, 46f), UIKit.Cream, UIKit.Blue, "", out clockRoot);
+        Sprite timeIcon = GameAssets.TabIcon(7);
+        if (timeIcon != null) UIKit.Icon(clockRoot.transform.GetChild(0), timeIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(27f, 27f), Color.white);
 
         GameObject dirtRoot;
-        dirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -192f), new Vector2(220f, 46f), UIKit.Cream, new Color(0.55f, 0.4f, 0.25f), "K", out dirtRoot);
+        dirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -192f), new Vector2(220f, 46f), UIKit.Cream, new Color(0.55f, 0.4f, 0.25f), "", out dirtRoot);
+        UIKit.Icon(dirtRoot.transform.GetChild(0), UIKit.Poop(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f), Color.white);
+
+        GameObject capacityRoot;
+        capacityText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -246f), new Vector2(220f, 46f), UIKit.Cream, UIKit.Orange, "", out capacityRoot);
+        Sprite bagIcon = GameAssets.ItemIcon(0);
+        if (bagIcon != null) UIKit.Icon(capacityRoot.transform.GetChild(0), bagIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(29f, 29f), Color.white);
 
         // hover tooltips for the HUD pills
         AddTip(moneyRoot, "PARA: Kasandaki toplam para.\nMusteriler odedikce artar, gelistirmelere harcanir.");
         AddTip(satRoot, "MEMNUNIYET: Musteri mutlulugu.\nDusukse baliklar cok daha ucuza satilir!");
         AddTip(clockRoot, "SAAT: Oyun saati ve dukkanin acik/kapali durumu.\nGece isiklar kisilir.");
         AddTip(dirtRoot, "KIRLILIK: Magaza + deniz kirliligi.\nYukselirse musteriler kacar, denizde baliklar olur!");
+        AddTip(capacityRoot, "BALIK TASIMA: Uzerindeki balik sayisi ve canta kapasitesi.");
 
         // tooltip panel
-        tipGo = UIKit.Panel(transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -246f), new Vector2(340f, 92f), new Color(0.15f, 0.15f, 0.22f, 0.95f), true, true);
+        tipGo = UIKit.Panel(transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -306f), new Vector2(340f, 92f), new Color(0.15f, 0.15f, 0.22f, 0.95f), true, true);
         tipText = UIKit.Label(tipGo.transform, "", 16, Color.white, TextAnchor.MiddleCenter);
         tipGo.SetActive(false);
 
@@ -108,6 +122,13 @@ public class UIManager : MonoBehaviour
         toastGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(780f, 58f), UIKit.Green, true, true);
         toastText = UIKit.Label(toastGo.transform, "", 22, Color.white, TextAnchor.MiddleCenter, true);
         toastGo.SetActive(false);
+
+        // Persistent first-session camera lesson. It deliberately has no timer
+        // and disappears only after the player actually presses C.
+        cameraTutorialGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -232f), new Vector2(850f, 64f), UIKit.Blue, true, true);
+        UIKit.Label(cameraTutorialGo.transform, Loc.T("CAMERA_TUTORIAL"), 20, Color.white, TextAnchor.MiddleCenter, true);
+        cameraTutorialGo.SetActive(false);
 
         // ----- thief timer -----
         thiefGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -160f), new Vector2(440f, 64f), UIKit.Red, true, true);
@@ -165,6 +186,10 @@ public class UIManager : MonoBehaviour
         rrt.anchorMin = Vector2.zero; rrt.anchorMax = Vector2.one;
         rrt.offsetMin = Vector2.zero; rrt.offsetMax = Vector2.zero;
         UIKit.Icon(minimapGo.transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(14f, 14f), UIKit.Red);
+        GameObject thiefDot = UIKit.Icon(maskGo.transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(20f, 20f), UIKit.Red);
+        thiefDot.AddComponent<Outline>().effectColor = Color.white;
+        minimapThiefDot = thiefDot.GetComponent<RectTransform>();
+        thiefDot.SetActive(false);
         GameObject n = UIKit.Panel(minimapGo.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 6f), new Vector2(30f, 30f), UIKit.Blue, true, false);
         UIKit.Label(n.transform, "K", 16, Color.white, TextAnchor.MiddleCenter, true);
 
@@ -275,26 +300,56 @@ public class UIManager : MonoBehaviour
         GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(750f, 80f), UIKit.Blue, true, true);
         infoTitle = UIKit.Label(band.transform, "", 30, Color.white, TextAnchor.MiddleCenter, true);
         GameObject bodyP = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -5f), new Vector2(660f, 200f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        infoBodyRect = bodyP.GetComponent<RectTransform>();
         infoBody = UIKit.Label(bodyP.transform, "", 22, UIKit.TextDark, TextAnchor.MiddleCenter);
-        UIKit.Btn(box.transform, new Vector2(0f, -155f), new Vector2(260f, 62f), UIKit.Green, Loc.T("OK"), 22, delegate { infoGo.SetActive(false); UpdateCursor(false); });
+        infoTrophyVisual = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 82f), new Vector2(150f, 105f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Panel(infoTrophyVisual.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 15f), new Vector2(86f, 54f), UIKit.Yellow, true, true);
+        UIKit.Panel(infoTrophyVisual.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -22f), new Vector2(18f, 34f), UIKit.Orange, true, false);
+        UIKit.Panel(infoTrophyVisual.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -43f), new Vector2(70f, 15f), UIKit.Orange, true, false);
+        UIKit.Icon(infoTrophyVisual.transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(-51f, 18f), new Vector2(42f, 42f), UIKit.Orange);
+        UIKit.Icon(infoTrophyVisual.transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(51f, 18f), new Vector2(42f, 42f), UIKit.Orange);
+        infoTrophyVisual.transform.SetSiblingIndex(infoBodyRect.GetSiblingIndex());
+        infoTrophyVisual.SetActive(false);
+        UIKit.Btn(box.transform, new Vector2(0f, -155f), new Vector2(260f, 62f), UIKit.Green, Loc.T("OK"), 22,
+            delegate
+            {
+                infoGo.SetActive(false);
+                System.Action action = infoAction;
+                infoAction = null;
+                if (action != null) action();
+                else UpdateCursor(false);
+            });
         infoGo.SetActive(false);
     }
 
     public void ShowInfo(string title, string body)
     {
+        ShowInfo(title, body, null);
+    }
+
+    public void ShowInfo(string title, string body, System.Action onClose)
+    {
+        bool trophy = title != null && title.Contains("KUPA");
+        if (infoTrophyVisual != null) infoTrophyVisual.SetActive(trophy);
+        if (infoBodyRect != null)
+        {
+            infoBodyRect.anchoredPosition = new Vector2(0f, trophy ? -55f : -5f);
+            infoBodyRect.sizeDelta = new Vector2(660f, trophy ? 145f : 200f);
+        }
         infoTitle.text = title;
         infoBody.text = body;
+        infoAction = onClose;
         infoGo.SetActive(true);
         UpdateCursor(true);
         Sfx.Play(Snd.Collect, 0.4f);
     }
 
-    // ---------- language picker (20 languages with simple flags) ----------
+    // ---------- language picker (20 languages with country-accurate flags) ----------
     void BuildLanguagePicker()
     {
         langGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000f, 4000f), new Color(0.1f, 0.35f, 0.6f, 0.98f), false, false);
         GameObject band = UIKit.Panel(langGo.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(760f, 80f), UIKit.Orange, true, true);
-        UIKit.Label(band.transform, "SELECT LANGUAGE / DIL SEC", 30, Color.white, TextAnchor.MiddleCenter, true);
+        UIKit.Label(band.transform, Loc.T("SELECT_LANGUAGE"), 30, Color.white, TextAnchor.MiddleCenter, true);
         // 20 flag buttons in a 5 x 4 grid
         for (int i = 0; i < Loc.Names.Length; i++)
         {
@@ -302,20 +357,99 @@ public class UIManager : MonoBehaviour
             float x = -520f + (i % 5) * 260f;
             float y = 190f - (i / 5) * 155f;
             GameObject card = UIKit.Panel(langGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(240f, 130f), UIKit.Cream, true, true);
-            // flag: 3 stripes
+            // Each country uses its real stripe/cross/crescent layout.
             GameObject flag = UIKit.Panel(card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(96f, 62f), Color.white, true, false);
-            Color[] cols = Loc.Flags[idx];
-            bool vert = Loc.Vertical[idx];
-            for (int s3 = 0; s3 < 3; s3++)
-            {
-                Vector2 off = vert ? new Vector2((s3 - 1) * 30f, 0f) : new Vector2(0f, (1 - s3) * 19f);
-                Vector2 sz = vert ? new Vector2(32f, 60f) : new Vector2(94f, 20f);
-                UIKit.Panel(flag.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), off, sz, cols[s3], false, false);
-            }
+            Mask mask = flag.AddComponent<Mask>();
+            mask.showMaskGraphic = true;
+            BuildFlag(flag.transform, Loc.FlagCodes[idx]);
             Button b = UIKit.Btn(card.transform, new Vector2(0f, -42f), new Vector2(220f, 44f), UIKit.Blue, Loc.Names[idx], 16,
-                delegate { Loc.Set(idx); langGo.SetActive(false); RelabelMenus(); if (!MainMenuOpen && Game.player == null) { } });
+                delegate
+                {
+                    Loc.Set(idx);
+                    if (Game.gm != null) Game.gm.Save();
+                    langGo.SetActive(false);
+                    GameBootstrap.SoftRestart();
+                });
         }
         langGo.SetActive(false);
+    }
+
+    static Sprite flagTriangle;
+
+    static GameObject FlagRect(Transform parent, Vector2 pos, Vector2 size, Color color, float angle = 0f)
+    {
+        GameObject go = UIKit.Panel(parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, size, color, false, false);
+        go.transform.localEulerAngles = new Vector3(0f, 0f, angle);
+        return go;
+    }
+
+    static Sprite FlagTriangleSprite()
+    {
+        if (flagTriangle != null) return flagTriangle;
+        const int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+                tex.SetPixel(x, y, x <= n - 1 - Mathf.Abs(y - n * 0.5f) * 2f ? Color.white : Color.clear);
+        tex.Apply();
+        flagTriangle = Sprite.Create(tex, new Rect(0f, 0f, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return flagTriangle;
+    }
+
+    static void FlagSymbol(Transform parent, string symbol, Vector2 pos, int size, Color color)
+    {
+        GameObject area = UIKit.Panel(parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos,
+            new Vector2(30f, 30f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(area.transform, symbol, size, color, TextAnchor.MiddleCenter, true);
+    }
+
+    static void FlagTriangle(Transform parent, Color color)
+    {
+        GameObject tri = UIKit.Icon(parent, FlagTriangleSprite(), new Vector2(0.5f, 0.5f), new Vector2(-24f, 0f), new Vector2(48f, 60f), color);
+        tri.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0.5f);
+    }
+
+    static void BuildFlag(Transform f, string code)
+    {
+        Color red = new Color(0.82f, 0.05f, 0.1f), blue = new Color(0.03f, 0.2f, 0.55f);
+        Color brightBlue = new Color(0.05f, 0.35f, 0.75f), yellow = new Color(1f, 0.82f, 0.05f);
+        FlagRect(f, Vector2.zero, new Vector2(94f, 60f), Color.white);
+        switch (code)
+        {
+            case "GB":
+                FlagRect(f, Vector2.zero, new Vector2(94f, 60f), blue);
+                FlagRect(f, Vector2.zero, new Vector2(112f, 8f), Color.white, 32f);
+                FlagRect(f, Vector2.zero, new Vector2(112f, 8f), Color.white, -32f);
+                FlagRect(f, Vector2.zero, new Vector2(94f, 17f), Color.white);
+                FlagRect(f, Vector2.zero, new Vector2(17f, 60f), Color.white);
+                FlagRect(f, Vector2.zero, new Vector2(94f, 9f), red);
+                FlagRect(f, Vector2.zero, new Vector2(9f, 60f), red);
+                break;
+            case "TR":
+                FlagRect(f, Vector2.zero, new Vector2(94f, 60f), red);
+                UIKit.Icon(f, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(-12f, 0f), new Vector2(31f, 31f), Color.white);
+                UIKit.Icon(f, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(-6f, 0f), new Vector2(25f, 25f), red);
+                FlagSymbol(f, "★", new Vector2(12f, 0f), 17, Color.white);
+                break;
+            case "DE": FlagRect(f, new Vector2(0f, 20f), new Vector2(94f, 20f), Color.black); FlagRect(f, Vector2.zero, new Vector2(94f, 20f), red); FlagRect(f, new Vector2(0f, -20f), new Vector2(94f, 20f), yellow); break;
+            case "FR": FlagRect(f, new Vector2(-31f, 0f), new Vector2(32f, 60f), blue); FlagRect(f, new Vector2(31f, 0f), new Vector2(32f, 60f), red); break;
+            case "ES": FlagRect(f, new Vector2(0f, 22f), new Vector2(94f, 16f), red); FlagRect(f, Vector2.zero, new Vector2(94f, 28f), yellow); FlagRect(f, new Vector2(0f, -22f), new Vector2(94f, 16f), red); FlagSymbol(f, "●", new Vector2(-20f, 0f), 13, red); break;
+            case "IT": FlagRect(f, new Vector2(-31f, 0f), new Vector2(32f, 60f), new Color(0.02f, 0.5f, 0.22f)); FlagRect(f, new Vector2(31f, 0f), new Vector2(32f, 60f), red); break;
+            case "PT": FlagRect(f, new Vector2(-28f, 0f), new Vector2(38f, 60f), new Color(0.02f, 0.45f, 0.2f)); FlagRect(f, new Vector2(19f, 0f), new Vector2(57f, 60f), red); FlagSymbol(f, "●", new Vector2(-9f, 0f), 18, yellow); break;
+            case "NL": FlagRect(f, new Vector2(0f, 20f), new Vector2(94f, 20f), red); FlagRect(f, new Vector2(0f, -20f), new Vector2(94f, 20f), blue); break;
+            case "PL": FlagRect(f, new Vector2(0f, -15f), new Vector2(94f, 30f), new Color(0.86f, 0.03f, 0.18f)); break;
+            case "RU": FlagRect(f, Vector2.zero, new Vector2(94f, 20f), brightBlue); FlagRect(f, new Vector2(0f, -20f), new Vector2(94f, 20f), red); break;
+            case "UA": FlagRect(f, new Vector2(0f, 15f), new Vector2(94f, 30f), brightBlue); FlagRect(f, new Vector2(0f, -15f), new Vector2(94f, 30f), yellow); break;
+            case "RO": FlagRect(f, new Vector2(-31f, 0f), new Vector2(32f, 60f), blue); FlagRect(f, Vector2.zero, new Vector2(32f, 60f), yellow); FlagRect(f, new Vector2(31f, 0f), new Vector2(32f, 60f), red); break;
+            case "CZ": FlagRect(f, new Vector2(0f, -15f), new Vector2(94f, 30f), red); FlagTriangle(f, blue); break;
+            case "SE": FlagRect(f, Vector2.zero, new Vector2(94f, 60f), brightBlue); FlagRect(f, new Vector2(-10f, 0f), new Vector2(11f, 60f), yellow); FlagRect(f, Vector2.zero, new Vector2(94f, 11f), yellow); break;
+            case "DK": FlagRect(f, Vector2.zero, new Vector2(94f, 60f), red); FlagRect(f, new Vector2(-10f, 0f), new Vector2(10f, 60f), Color.white); FlagRect(f, Vector2.zero, new Vector2(94f, 10f), Color.white); break;
+            case "NO": FlagRect(f, Vector2.zero, new Vector2(94f, 60f), red); FlagRect(f, new Vector2(-10f, 0f), new Vector2(13f, 60f), Color.white); FlagRect(f, Vector2.zero, new Vector2(94f, 13f), Color.white); FlagRect(f, new Vector2(-10f, 0f), new Vector2(7f, 60f), blue); FlagRect(f, Vector2.zero, new Vector2(94f, 7f), blue); break;
+            case "FI": FlagRect(f, new Vector2(-10f, 0f), new Vector2(10f, 60f), brightBlue); FlagRect(f, Vector2.zero, new Vector2(94f, 10f), brightBlue); break;
+            case "ID": FlagRect(f, new Vector2(0f, 15f), new Vector2(94f, 30f), red); break;
+            case "VN": FlagRect(f, Vector2.zero, new Vector2(94f, 60f), red); FlagSymbol(f, "★", Vector2.zero, 25, yellow); break;
+            case "PH": FlagRect(f, new Vector2(0f, 15f), new Vector2(94f, 30f), brightBlue); FlagRect(f, new Vector2(0f, -15f), new Vector2(94f, 30f), red); FlagTriangle(f, Color.white); FlagSymbol(f, "★", new Vector2(-31f, 0f), 14, yellow); break;
+        }
     }
 
     public void ShowLanguagePicker() { langGo.SetActive(true); langGo.transform.SetAsLastSibling(); UpdateCursor(true); }
@@ -404,8 +538,7 @@ public class UIManager : MonoBehaviour
         celebrationGo.SetActive(true);
         celebTimer = 8f;
         UpdateCursor(true);
-        Sfx.Play(Snd.Buy, 0.9f);
-        Sfx.Play(Snd.Collect, 0.9f);
+        Sfx.Play(Snd.LevelUp, 0.95f);
 
         // spawn the new species on the hidden portrait stage
         if (celebModel != null) Destroy(celebModel);
@@ -474,26 +607,39 @@ public class UIManager : MonoBehaviour
     void BuildPause()
     {
         pauseGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000f, 4000f), new Color(0f, 0f, 0f, 0.6f), false, false);
-        GameObject box = UIKit.Panel(pauseGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 470f), UIKit.Cream, true, true);
+        GameObject box = UIKit.Panel(pauseGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 540f), UIKit.Cream, true, true);
         GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(510f, 76f), UIKit.Blue, true, true);
         UIKit.Label(band.transform, Loc.T("PAUSED"), 30, Color.white, TextAnchor.MiddleCenter, true);
-        UIKit.Btn(box.transform, new Vector2(0f, 66f), new Vector2(380f, 58f), UIKit.Green, Loc.T("RESUME"), 22, delegate { TogglePause(); });
-        UIKit.Btn(box.transform, new Vector2(0f, 2f), new Vector2(380f, 58f), UIKit.Purple, Loc.T("LANGUAGE"), 22, delegate { ShowLanguagePicker(); });
+        UIKit.Btn(box.transform, new Vector2(0f, 98f), new Vector2(380f, 58f), UIKit.Green, Loc.T("RESUME"), 22, delegate { TogglePause(); });
+        UIKit.Btn(box.transform, new Vector2(0f, 34f), new Vector2(380f, 58f), UIKit.Purple, Loc.T("LANGUAGE"), 22, delegate { ShowLanguagePicker(); });
         Button sndBtn = null;
-        sndBtn = UIKit.Btn(box.transform, new Vector2(0f, -62f), new Vector2(380f, 58f), UIKit.Blue, Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON"), 22,
+        sndBtn = UIKit.Btn(box.transform, new Vector2(0f, -30f), new Vector2(380f, 58f), UIKit.Blue, Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON"), 22,
             delegate
             {
                 Sfx.Muted = !Sfx.Muted;
                 AudioListener.volume = Sfx.Muted ? 0f : 1f;
                 sndBtn.GetComponentInChildren<Text>().text = Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON");
             });
-        UIKit.Btn(box.transform, new Vector2(0f, -126f), new Vector2(380f, 58f), UIKit.Orange, Loc.T("SAVE_MENU"), 20,
+        Button camBtn = null;
+        camBtn = UIKit.Btn(box.transform, new Vector2(0f, -94f), new Vector2(380f, 58f), UIKit.Blue, CameraModeLabel(), 20,
+            delegate
+            {
+                if (Game.cam != null) Game.cam.TogglePlayerMode();
+                camBtn.GetComponentInChildren<Text>().text = CameraModeLabel();
+                UpdateCursor(true);
+            });
+        UIKit.Btn(box.transform, new Vector2(0f, -158f), new Vector2(380f, 58f), UIKit.Orange, Loc.T("SAVE_MENU"), 20,
             delegate
             {
                 Game.gm.Save();
                 GameBootstrap.GoToMenu();
             });
         pauseGo.SetActive(false);
+    }
+
+    string CameraModeLabel()
+    {
+        return Loc.T("CAMERA_VIEW") + ": " + (Game.cam != null && Game.cam.IsTPS ? "TPS" : Loc.T("TOP_DOWN"));
     }
 
     public void TogglePause()
@@ -545,11 +691,24 @@ public class UIManager : MonoBehaviour
         if (Game.toilets != null) Game.toilets.OnLevelChanged();
     }
 
-    public void Toast(string msg)
+    public void Toast(string msg, float duration = 3.5f)
     {
         toastText.text = msg;
         toastGo.SetActive(true);
-        toastTimer = 3.5f;
+        toastTimer = duration;
+    }
+
+    public void ShowCameraTutorial()
+    {
+        if (cameraTutorialGo != null && PlayerPrefs.GetInt("AT3_CameraTutorialDone", 0) == 0)
+            cameraTutorialGo.SetActive(true);
+    }
+
+    public void HideCameraTutorial()
+    {
+        if (cameraTutorialGo != null) cameraTutorialGo.SetActive(false);
+        PlayerPrefs.SetInt("AT3_CameraTutorialDone", 1);
+        PlayerPrefs.Save();
     }
 
     public void SetPrompt(string msg)
@@ -604,6 +763,8 @@ public class UIManager : MonoBehaviour
         else satText.color = UIKit.TextDark;
 
         clockText.text = Game.gm.ClockText() + (Game.gm.shopOpen ? " ACIK" : " KAPALI");
+        if (capacityText != null && Game.player != null)
+            capacityText.text = Game.player.CarryCount + "/" + Game.gm.Capacity;
 
         // pollution %: shop litter + sea slicks
         if (dirtText != null && Game.trash != null)
@@ -645,6 +806,17 @@ public class UIManager : MonoBehaviour
             if (navOn && Game.player != null)
                 minimapCam.transform.position = Game.player.transform.position + Vector3.up * 90f;
         }
+        if (minimapThiefDot != null)
+        {
+            Thief thief = navOn && Game.player != null ? Thief.Nearest(Game.player.transform.position) : null;
+            bool show = thief != null;
+            minimapThiefDot.gameObject.SetActive(show);
+            if (show)
+            {
+                Vector3 delta = thief.transform.position - Game.player.transform.position;
+                minimapThiefDot.anchoredPosition = new Vector2(delta.x, delta.z) * (232f / 52f);
+            }
+        }
 
         // quests
         questTimer -= Time.unscaledDeltaTime;
@@ -679,7 +851,7 @@ public class UIManager : MonoBehaviour
         else if (Game.register != null && !Game.register.HasOperator)
             h = "Musteriler bekliyor: kasanin arkasina gec veya kasiyer al!";
         else
-            h = "U: kamera  |  E: etkilesim  |  Kasadaki PC'den her seyi yonet!";
+            h = Loc.T("CONTROL_HINT");
         hintText.text = h;
     }
 }

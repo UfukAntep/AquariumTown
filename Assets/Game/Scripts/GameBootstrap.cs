@@ -8,16 +8,18 @@ public class GameBootstrap : MonoBehaviour
     static bool hooked;
     static GameBootstrap instance;
     static Light sun;
+    static Material skyMaterial;
     static GameObject gateBarrier;
     static TextMesh gateNameText;
-    static readonly Vector3 GateSignPos = new Vector3(6.5f, 0f, 32.5f);
+    // Keep the manual open/close sign inside the starting shop boundary.
+    static readonly Vector3 GateSignPos = new Vector3(6.5f, 0f, 28.5f);
     static Bounds displayBounds = new Bounds(new Vector3(-25f, 1.9f, 187.5f), new Vector3(58f, 1.4f, 3.5f));
     static List<Fish> displayFish = new List<Fish>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
-        booted = false; hooked = false; instance = null; sun = null; gateBarrier = null; gateNameText = null;
+        booted = false; hooked = false; instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null;
         displayFish = new List<Fish>();
         Game.Clear();
         MatLib.Clear();
@@ -43,7 +45,7 @@ public class GameBootstrap : MonoBehaviour
     public static void PrepareRestart()
     {
         booted = false;
-        instance = null; sun = null; gateBarrier = null; gateNameText = null;
+        instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null;
         displayFish = new List<Fish>();
         Game.Clear();
         MatLib.Clear();
@@ -118,10 +120,29 @@ public class GameBootstrap : MonoBehaviour
     const int Cols = 5;
     public const float MapTop = 190f;
 
-    // Fill order: #1 top of col0, #2 directly below it, then the next columns
-    // continue left. Later bands continue upward without entering the toilet room.
+    // The opening section follows the player's marked zig-zag: #1 uses the old
+    // "Golden Crab" plot, #2 is directly below, then the order snakes left.
+    // Near the toilet annex the lower row is skipped and progression continues
+    // from the safe upper row. Later groups use the regular 5x2 grid.
     public static Vector3 PlotPos(int i)
     {
+        if (i < 10)
+        {
+            switch (i)
+            {
+                case 0: return new Vector3(-8f, 0f, 12f);  // first: old Golden Crab plot
+                case 1: return new Vector3(-8f, 0f, 1f);   // second: directly below
+                case 2: return new Vector3(-19f, 0f, 1f);  // then left
+                case 3: return new Vector3(-19f, 0f, 12f); // and up
+                case 4: return new Vector3(-30f, 0f, 12f);
+                case 5: return new Vector3(-30f, 0f, 1f);
+                case 6: return new Vector3(-41f, 0f, 12f); // skip toilet's lower row
+                case 7: return new Vector3(-52f, 0f, 12f);
+                case 8: return new Vector3(-41f, 0f, 23f);
+                default: return new Vector3(-52f, 0f, 23f);
+            }
+        }
+
         int band = i / 10;
         int k = i % 10;
         int col = k / 2;
@@ -176,7 +197,7 @@ public class GameBootstrap : MonoBehaviour
 
         CameraRig rig = CameraRig.Create();
         BuildSun();
-        Sfx.Init(gameObject);
+        Sfx.Init(gameObject, false);
         UIManager.Create();
         PCScreen.Create();
 
@@ -300,7 +321,7 @@ public class GameBootstrap : MonoBehaviour
     // ---------- lightweight menu scene ----------
     void BuildMenuScene()
     {
-        Sfx.Init(gameObject);
+        Sfx.Init(gameObject, true);
         Material seaMat = AssetLib.WaterMaterial();
         if (seaMat == null) seaMat = MatLib.Glass(new Color(0.3f, 0.7f, 0.95f, 0.85f));
         B.Prim(PrimitiveType.Plane, "MenuSea", transform, Vector3.zero, Vector3.zero, new Vector3(30f, 1f, 30f), seaMat);
@@ -314,7 +335,7 @@ public class GameBootstrap : MonoBehaviour
         GameObject camGo = new GameObject("Main Camera");
         camGo.tag = "MainCamera";
         Camera cam = camGo.AddComponent<Camera>();
-        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.clearFlags = CameraClearFlags.Skybox;
         cam.backgroundColor = new Color(0.55f, 0.8f, 0.95f);
         cam.fieldOfView = 50f;
         camGo.AddComponent<AudioListener>();
@@ -541,7 +562,12 @@ public class GameBootstrap : MonoBehaviour
         // shop floor (paintable) spans the full expandable area: x -58..8, z -4..135
         B.Prim(PrimitiveType.Cube, "ShopFloor", transform, new Vector3(-25f, 0.01f, (MapTop - 4f) * 0.5f), Vector3.zero, new Vector3(66f, 0.02f, MapTop + 4f), MatLib.Floor());
         B.Prim(PrimitiveType.Cube, "GrassStrip", transform, new Vector3(14f, 0.012f, 40f), Vector3.zero, new Vector3(12f, 0.02f, 200f), MatLib.Grass());
-        B.Prim(PrimitiveType.Cube, "BeachStrip", transform, new Vector3(23f, 0.014f, 40f), Vector3.zero, new Vector3(6f, 0.02f, 200f), MatLib.Beach());
+        // Soft lime-to-sand shoreline like a friendly mobile aquarium game.
+        B.Prim(PrimitiveType.Cube, "ShoreLightGrass", transform, new Vector3(20.2f, 0.015f, 40f), Vector3.zero,
+            new Vector3(2.4f, 0.025f, 200f), MatLib.Get(new Color(0.68f, 0.94f, 0.45f)));
+        B.Prim(PrimitiveType.Cube, "ShorePaleSand", transform, new Vector3(23.3f, 0.018f, 40f), Vector3.zero,
+            new Vector3(4.2f, 0.03f, 200f), MatLib.Get(new Color(1f, 0.96f, 0.68f)));
+        BuildCuteShoreDetails();
         // DEEP water: transparent surface above, dark seabed far below, the
         // character sinks into it while swimming (real depth feel)
         B.Prim(PrimitiveType.Plane, "SeaSurf", transform, new Vector3(SeaRect.center.x, 0.55f, SeaRect.center.y), Vector3.zero,
@@ -555,6 +581,7 @@ public class GameBootstrap : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "ShoreSlope", transform, new Vector3(SeaRect.xMin + 2.5f, -1.1f, SeaRect.center.y), new Vector3(0f, 0f, 35f),
             new Vector3(6f, 0.1f, SeaRect.height), MatLib.Get(new Color(0.85f, 0.8f, 0.6f)));
 
+
         MakeWall(new Vector3(27f, 2f, MapTop + 6f), new Vector3(260f, 4f, 1f));
         MakeWall(new Vector3(27f, 2f, -66f), new Vector3(260f, 4f, 1f));
         MakeWall(new Vector3(-62f, 2f, 60f), new Vector3(1f, 4f, 260f));
@@ -566,16 +593,30 @@ public class GameBootstrap : MonoBehaviour
     {
         Material src = AssetLib.WaterMaterial();
         if (src == null) return MatLib.Glass(new Color(0.42f, 0.82f, 1f, 0.75f));
-        Material m = new Material(src); // never modify the asset itself
-        Color shallow = new Color(0.68f, 0.95f, 1f, 0.72f);
-        Color deep = new Color(0.42f, 0.86f, 1f, 0.78f);
-        string[] shallowProps = { "_DepthGradientShallow", "_ShallowColor", "_Color_Shallow", "_BaseColor", "_Color" };
-        string[] deepProps = { "_DepthGradientDeep", "_DeepColor", "_Color_Deep" };
-        for (int i = 0; i < shallowProps.Length; i++)
-            if (m.HasProperty(shallowProps[i])) { m.SetColor(shallowProps[i], shallow); break; }
-        for (int i = 0; i < deepProps.Length; i++)
-            if (m.HasProperty(deepProps[i])) { m.SetColor(deepProps[i], deep); break; }
-        return m;
+        return new Material(src); // preserve Water_mat_04's authored blue palette
+    }
+
+    void BuildCuteShoreDetails()
+    {
+        Material stone = MatLib.Get(new Color(0.55f, 0.85f, 0.43f));
+        Material shell = MatLib.Get(new Color(0.55f, 0.8f, 1f));
+        Material star = MatLib.Get(new Color(0.93f, 0.55f, 0.68f));
+        for (float z = SeaRect.yMin + 5f; z < SeaRect.yMax; z += 13f)
+        {
+            for (int i = 0; i < 3; i++)
+                B.Prim(PrimitiveType.Sphere, "ShoreStone", transform,
+                    new Vector3(Random.Range(18.7f, 21f), 0.07f, z + Random.Range(-2.5f, 2.5f)), Vector3.zero,
+                    new Vector3(Random.Range(0.5f, 1.15f), 0.09f, Random.Range(0.45f, 0.9f)), stone);
+            B.Prim(PrimitiveType.Sphere, "Shell", transform,
+                new Vector3(Random.Range(21.5f, 24.5f), 0.08f, z + 3.5f), Vector3.zero,
+                new Vector3(0.32f, 0.08f, 0.24f), shell);
+            GameObject s = new GameObject("Starfish");
+            s.transform.SetParent(transform, false);
+            s.transform.position = new Vector3(Random.Range(21.5f, 24.5f), 0.07f, z - 3f);
+            for (int arm = 0; arm < 5; arm++)
+                B.Prim(PrimitiveType.Cube, "Arm", s.transform, Vector3.forward * 0.22f,
+                    new Vector3(0f, arm * 72f, 0f), new Vector3(0.1f, 0.04f, 0.42f), star);
+        }
     }
 
     void MakeWall(Vector3 pos, Vector3 size)
@@ -738,16 +779,33 @@ public class GameBootstrap : MonoBehaviour
         sun.shadows = LightShadows.Soft;
         lightGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
         RenderSettings.ambientLight = new Color(0.6f, 0.65f, 0.7f);
+        if (GameAssets.SkyMaterial != null)
+        {
+            skyMaterial = new Material(GameAssets.SkyMaterial);
+            RenderSettings.skybox = skyMaterial;
+        }
     }
 
     void Update()
     {
         if (sun != null && Game.gm != null)
         {
-            float targetIntensity = Game.gm.IsNight ? 0.55f : 1.15f;
+            float hour = Game.gm.clockMinutes / 60f;
+            float daylight;
+            if (hour >= 7f && hour < 20f) daylight = 1f;
+            else if (hour >= 20f && hour < 21f) daylight = Mathf.Lerp(1f, 0.18f, hour - 20f);
+            else if (hour >= 5f && hour < 7f) daylight = Mathf.Lerp(0.18f, 1f, (hour - 5f) / 2f);
+            else daylight = 0.18f;
+            float targetIntensity = Mathf.Lerp(0.2f, 1.15f, daylight);
             sun.intensity = Mathf.Lerp(sun.intensity, targetIntensity, Time.deltaTime * 0.5f);
-            Color targetAmb = Game.gm.IsNight ? new Color(0.35f, 0.4f, 0.55f) : new Color(0.6f, 0.65f, 0.7f);
+            sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(15f, 65f, daylight), -35f + hour * 3f, 0f);
+            Color targetAmb = Color.Lerp(new Color(0.12f, 0.16f, 0.3f), new Color(0.6f, 0.65f, 0.7f), daylight);
             RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, targetAmb, Time.deltaTime * 0.5f);
+            if (skyMaterial != null)
+            {
+                if (skyMaterial.HasProperty("_Exposure")) skyMaterial.SetFloat("_Exposure", Mathf.Lerp(0.28f, 1.08f, daylight));
+                if (skyMaterial.HasProperty("_Tint")) skyMaterial.SetColor("_Tint", Color.Lerp(new Color(0.16f, 0.2f, 0.42f, 1f), Color.white, daylight));
+            }
         }
     }
 }
@@ -781,6 +839,13 @@ public class RestartRunner : MonoBehaviour
 public class Jetski : MonoBehaviour
 {
     bool mounted;
+    bool broken;
+    Vector3 homePosition;
+    TextMesh statusText;
+    GameObject hull;
+
+    public bool Broken { get { return broken; } }
+    public int RepairCost { get { return Mathf.RoundToInt(DecorInfo.Costs[7] * 0.9f); } }
 
     public static Jetski Create(Vector3 pos, Transform parent)
     {
@@ -788,21 +853,69 @@ public class Jetski : MonoBehaviour
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.position = pos;
         Jetski j = go.AddComponent<Jetski>();
+        Game.jetski = j;
+        j.homePosition = pos;
         Material bodyM = MatLib.Get(new Color(0.95f, 0.3f, 0.2f));
         Material white = MatLib.Get(Color.white);
         Material dark = MatLib.Get(new Color(0.15f, 0.15f, 0.2f));
-        B.Prim(PrimitiveType.Capsule, "Hull", go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(90f, 0f, 0f), new Vector3(0.8f, 1.1f, 0.5f), bodyM);
+        j.hull = B.Prim(PrimitiveType.Capsule, "Hull", go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(90f, 0f, 0f), new Vector3(0.8f, 1.1f, 0.5f), bodyM);
         B.Prim(PrimitiveType.Cube, "Seat", go.transform, new Vector3(0f, 0.55f, -0.35f), Vector3.zero, new Vector3(0.5f, 0.25f, 0.9f), white);
         B.Prim(PrimitiveType.Cube, "Stem", go.transform, new Vector3(0f, 0.6f, 0.55f), new Vector3(-20f, 0f, 0f), new Vector3(0.1f, 0.5f, 0.1f), dark);
         B.Prim(PrimitiveType.Cube, "Handle", go.transform, new Vector3(0f, 0.85f, 0.62f), Vector3.zero, new Vector3(0.65f, 0.08f, 0.08f), dark);
         go.AddComponent<Bobber>().amp = 0.05f;
-        B.Text3D("JETSKI", go.transform, new Vector3(0f, 1.6f, 0f), 0.08f, Color.white);
+        j.statusText = B.Text3D("", go.transform, new Vector3(0f, 1.6f, 0f), 0.08f, Color.white);
+        j.ApplyLevelVisual();
         return j;
+    }
+
+    public void ApplyLevelVisual()
+    {
+        int level = Game.gm != null ? Game.gm.jetskiLevel : 1;
+        if (hull != null)
+        {
+            Renderer r = hull.GetComponent<Renderer>();
+            if (r != null) r.sharedMaterial = MatLib.Get(Color.HSVToRGB(Mathf.Lerp(0.02f, 0.55f, (level - 1) / 4f), 0.72f, 0.95f));
+        }
+        if (statusText != null) statusText.text = broken ? "KIRIK!  $" + B.Money(RepairCost) : "JETSKI  Sv" + level;
+    }
+
+    public bool PlayerNear(Vector3 playerPos) { return Vector3.Distance(playerPos, transform.position) < 3.2f; }
+
+    public void BreakFromShark()
+    {
+        mounted = false;
+        broken = true;
+        if (Game.player != null && Game.player.jetski == this) Game.player.jetski = null;
+        transform.SetParent(Game.world, true);
+        transform.position = homePosition;
+        transform.rotation = Quaternion.Euler(0f, 0f, 72f);
+        Bobber bb = GetComponent<Bobber>();
+        if (bb == null) gameObject.AddComponent<Bobber>().amp = 0.05f;
+        ApplyLevelVisual();
+        if (Game.ui != null) Game.ui.Toast("Jetski kirildi! Iskelenin yaninda $" + B.Money(RepairCost) + " odeyerek tamir et.", 6f);
+    }
+
+    public bool TryRepair()
+    {
+        if (!broken) return false;
+        if (!Game.gm.TrySpend(RepairCost))
+        {
+            if (Game.ui != null) Game.ui.Toast("Jetski tamiri icin yeterli paran yok!");
+            return false;
+        }
+        broken = false;
+        transform.position = homePosition;
+        transform.rotation = Quaternion.identity;
+        ApplyLevelVisual();
+        Sfx.Play(Snd.Repair, 0.9f);
+        if (Game.ui != null) Game.ui.Toast("Jetski tamir edildi!");
+        return true;
     }
 
     void Update()
     {
         if (Game.player == null) return;
+        if (broken) return;
         if (!mounted)
         {
             if (Game.player.Swimming && Game.player.jetski == null &&
@@ -840,6 +953,7 @@ public class RampZone : MonoBehaviour
 {
     Vector3 landing;
     float cooldown;
+    GameObject rampVisual;
 
     public static RampZone Create(Vector3 pos, Vector3 landing, Transform parent)
     {
@@ -847,8 +961,21 @@ public class RampZone : MonoBehaviour
         if (parent != null) go.transform.SetParent(parent);
         go.transform.position = pos;
         RampZone r = go.AddComponent<RampZone>();
+        Game.ramp = r;
         r.landing = landing;
+        r.rampVisual = B.Prim(PrimitiveType.Cube, "UpgradeRamp", go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(0f, 0f, -15f), new Vector3(2.3f, 0.3f, 2.8f), MatLib.Get(UIKit.Orange), true);
+        r.ApplyLevelVisual();
         return r;
+    }
+
+    public void ApplyLevelVisual()
+    {
+        int level = Game.gm != null ? Game.gm.rampLevel : 1;
+        if (rampVisual != null)
+        {
+            Renderer renderer = rampVisual.GetComponent<Renderer>();
+            if (renderer != null) renderer.sharedMaterial = MatLib.Get(Color.HSVToRGB(Mathf.Lerp(0.08f, 0.82f, (level - 1) / 4f), 0.65f, 1f));
+        }
     }
 
     void Update()
@@ -860,7 +987,11 @@ public class RampZone : MonoBehaviour
         if (Mathf.Abs(p.x - transform.position.x) < 1.2f && Mathf.Abs(p.z - transform.position.z) < 1.6f)
         {
             cooldown = 2f;
-            Game.player.LaunchTo(landing + new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f)));
+            int level = Game.gm != null ? Game.gm.rampLevel : 1;
+            float[] distances = { 8f, 14f, 23f, 36f, 54f };
+            Vector3 target = new Vector3(transform.position.x + distances[level - 1], 0f, transform.position.z + Random.Range(-1.2f, 1.2f));
+            if (Game.sea != null) target.x = Mathf.Min(target.x, Game.sea.area.xMax - 12f);
+            Game.player.LaunchTo(target, 4f + level * 1.4f);
         }
     }
 }

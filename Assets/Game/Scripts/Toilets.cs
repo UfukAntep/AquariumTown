@@ -27,7 +27,7 @@ public class Toilets : MonoBehaviour
     GameObject lockedSign;
     float playerFixTimer;
 
-    public Vector3 EntrancePos { get { return transform.position + new Vector3(3f, 0f, -4.5f); } }
+    public Vector3 EntrancePos { get { return transform.position + new Vector3(9f, 0f, 0f); } }
 
     public int CleanToiletCount
     {
@@ -39,6 +39,7 @@ public class Toilets : MonoBehaviour
     }
     public bool HasCleanUnit { get { return CleanToiletCount > 0; } }
     public int UrineSpotCount { get { urineSpots.RemoveAll(s => s == null || s.go == null); return urineSpots.Count; } }
+    public bool CanStealToilet { get { return CountOf(0) > 0; } }
 
     public static Toilets Create(Vector3 pos, Transform parent)
     {
@@ -71,8 +72,16 @@ public class Toilets : MonoBehaviour
             new Vector3(15f, 1.6f, 0.18f), wall, true);
         B.Prim(PrimitiveType.Cube, "ToiletWallLeft", parent, new Vector3(-4.5f, 0.8f, 0f), Vector3.zero,
             new Vector3(0.18f, 1.6f, 9f), wall, true);
-        B.Prim(PrimitiveType.Cube, "ToiletWallRight", parent, new Vector3(10.5f, 0.8f, 0f), Vector3.zero,
-            new Vector3(0.18f, 1.6f, 9f), wall, true);
+        if (locked)
+            B.Prim(PrimitiveType.Cube, "ToiletWallRight", parent, new Vector3(10.5f, 0.8f, 0f), Vector3.zero,
+                new Vector3(0.18f, 1.6f, 9f), wall, true);
+        else
+        {
+            B.Prim(PrimitiveType.Cube, "ToiletWallRightBottom", parent, new Vector3(10.5f, 0.8f, -3f), Vector3.zero,
+                new Vector3(0.18f, 1.6f, 3f), wall, true);
+            B.Prim(PrimitiveType.Cube, "ToiletWallRightTop", parent, new Vector3(10.5f, 0.8f, 3f), Vector3.zero,
+                new Vector3(0.18f, 1.6f, 3f), wall, true);
+        }
 
         if (locked)
         {
@@ -84,11 +93,9 @@ public class Toilets : MonoBehaviour
         }
         else
         {
-            // Three-metre doorway centred on the customer entrance.
-            B.Prim(PrimitiveType.Cube, "ToiletWallFrontL", parent, new Vector3(-1.5f, 0.8f, -4.5f), Vector3.zero,
-                new Vector3(6f, 1.6f, 0.18f), wall, true);
-            B.Prim(PrimitiveType.Cube, "ToiletWallFrontR", parent, new Vector3(7.5f, 0.8f, -4.5f), Vector3.zero,
-                new Vector3(6f, 1.6f, 0.18f), wall, true);
+            // Front is closed; the three-metre doorway is on the right wall.
+            B.Prim(PrimitiveType.Cube, "ToiletWallFront", parent, new Vector3(3f, 0.8f, -4.5f), Vector3.zero,
+                new Vector3(15f, 1.6f, 0.18f), wall, true);
         }
     }
 
@@ -139,6 +146,27 @@ public class Toilets : MonoBehaviour
         u.clogTimer = Random.Range(60f, 150f);
         units.Add(u);
         UpdateText(u);
+    }
+
+    public bool TryStealToilet()
+    {
+        for (int i = units.Count - 1; i >= 0; i--)
+        {
+            if (units[i].type != 0) continue;
+            Unit stolen = units[i];
+            units.RemoveAt(i);
+            if (stolen.go != null) Destroy(stolen.go);
+            Game.gm.toiletCount = Mathf.Max(0, Game.gm.toiletCount - 1);
+            return true;
+        }
+        return false;
+    }
+
+    public void RestoreStolenToilet()
+    {
+        if (Game.gm.toiletCount >= 5) return;
+        Game.gm.toiletCount++;
+        AddUnit(0);
     }
 
     // customer uses the facilities

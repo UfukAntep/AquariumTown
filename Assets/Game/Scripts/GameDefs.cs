@@ -16,6 +16,8 @@ public static class Game
     public static Toilets toilets;
     public static CameraRig cam;
     public static EventManager events;
+    public static Jetski jetski;
+    public static RampZone ramp;
     public static Transform world;
     public static List<Tank> tanks = new List<Tank>();
     public static List<Staff> staff = new List<Staff>();
@@ -23,9 +25,10 @@ public static class Game
     public static void Clear()
     {
         gm = null; player = null; register = null; ui = null; pc = null; sea = null;
-        depot = null; trash = null; toilets = null; cam = null; events = null; world = null;
+        depot = null; trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; world = null;
         tanks = new List<Tank>();
         staff = new List<Staff>();
+        TrophySystem.ClearRuntime();
     }
 
     public static Tank TankOf(int sp)
@@ -46,6 +49,13 @@ public static class Game
         int n = 0;
         for (int i = 0; i < tanks.Count; i++) if (tanks[i].HasStock) n++;
         return n;
+    }
+
+    public static void ReturnFishToStorage(int species)
+    {
+        Tank tank = TankOf(species);
+        if (tank != null && tank.AddCount(1) == 1) return;
+        if (depot != null && depot.HasSpace) depot.Store(species);
     }
 }
 
@@ -184,7 +194,9 @@ public static class UpgInfo
 {
     public static readonly int Count = 8;
     static readonly string[] label = { "CANTA", "KOSU HIZI", "YUZME HIZI", "RADAR HIZI", "RADAR MENZILI", "BAHSIS", "MUSTERI HIZI", "EKSTRA PARA" };
-    static readonly string[] desc = { "+3 tasima", "+%8 hiz", "+%10 hiz", "+%12 tarama", "+0.5 menzil", "+%6 bahsis", "+%10 hiz", "+%10 satis" };
+    static readonly string[] desc = {
+        "+3 balik tasima kapasitesi", "+%8 kosu hizi", "+%10 yuzme hizi", "+%12 deniz tarama hizi",
+        "+0.5 deniz radar menzili", "+%6 musteri bahsis sansi", "+%10 musteri hareket hizi", "+%10 daha fazla satis geliri" };
     static readonly int[] baseCost = { 40, 60, 60, 80, 80, 120, 100, 150 };
     static readonly float[] mult = { 1.9f, 1.8f, 1.8f, 1.9f, 1.9f, 2.0f, 1.9f, 2.1f };
     static readonly int[] max = { 15, 12, 12, 10, 10, 8, 8, 10 };
@@ -224,27 +236,57 @@ public static class MatLib
 {
     static Dictionary<Color, Material> solid = new Dictionary<Color, Material>();
     static Dictionary<Color, Material> glass = new Dictionary<Color, Material>();
-    static Material waterMat, grassMat, beachMat;
+    static Material waterMat, grassMat, beachMat, runtimeLit, runtimeLitTransparent;
     public static Material FloorMat, WallMat; // paintable
 
     public static void Clear()
     {
         solid.Clear(); glass.Clear();
         waterMat = null; grassMat = null; beachMat = null; FloorMat = null; WallMat = null;
+        runtimeLit = null; runtimeLitTransparent = null;
     }
 
     static Shader Lit()
     {
-        Shader s = Shader.Find("Universal Render Pipeline/Lit");
+        if (runtimeLit == null) runtimeLit = Resources.Load<Material>("RuntimeLit");
+        Shader s = runtimeLit != null ? runtimeLit.shader : null;
+        if (s == null) s = Shader.Find("Universal Render Pipeline/Lit");
         if (s == null) s = Shader.Find("Standard");
+        if (s == null) s = Shader.Find("Hidden/InternalErrorShader");
         return s;
+    }
+
+    static Material NewLitMaterial(bool transparent = false)
+    {
+        Material template;
+        if (transparent)
+        {
+            if (runtimeLitTransparent == null)
+                runtimeLitTransparent = Resources.Load<Material>("RuntimeLitTransparent");
+            template = runtimeLitTransparent;
+        }
+        else
+        {
+            if (runtimeLit == null) runtimeLit = Resources.Load<Material>("RuntimeLit");
+            template = runtimeLit;
+        }
+        if (template != null) return new Material(template);
+
+        Shader shader = Lit();
+        if (shader != null) return new Material(shader);
+
+        // Last-resort protection for aggressively stripped player builds. The
+        // built-in default material is packaged by Unity with the player.
+        Material fallback = Resources.GetBuiltinResource<Material>("Default-Material.mat");
+        if (fallback != null) return new Material(fallback);
+        throw new System.InvalidOperationException("No runtime material shader is available.");
     }
 
     public static Material Get(Color c)
     {
         Material m;
         if (solid.TryGetValue(c, out m) && m != null) return m;
-        m = new Material(Lit());
+        m = NewLitMaterial();
         m.color = c;
         m.SetFloat("_Smoothness", 0.25f);
         solid[c] = m;
@@ -255,7 +297,7 @@ public static class MatLib
     {
         Material m;
         if (glass.TryGetValue(c, out m) && m != null) return m;
-        m = new Material(Lit());
+        m = NewLitMaterial(true);
         MakeTransparent(m);
         m.color = c;
         m.SetFloat("_Smoothness", 0.75f);
@@ -286,7 +328,7 @@ public static class MatLib
     {
         if (FloorMat != null) return FloorMat;
         Texture2D tex = TriangleTex(Color.white, new Color(0.94f, 0.94f, 0.94f));
-        FloorMat = new Material(Lit());
+        FloorMat = NewLitMaterial();
         FloorMat.mainTexture = tex;
         FloorMat.color = FloorStyles[0];
         FloorMat.SetFloat("_Smoothness", 0.1f);
@@ -297,7 +339,7 @@ public static class MatLib
     public static Material Wall()
     {
         if (WallMat != null) return WallMat;
-        WallMat = new Material(Lit());
+        WallMat = NewLitMaterial();
         WallMat.color = WallStyles[0];
         WallMat.SetFloat("_Smoothness", 0.3f);
         return WallMat;
@@ -307,7 +349,7 @@ public static class MatLib
     {
         if (waterMat != null) return waterMat;
         Texture2D tex = CellTex(new Color(0.35f, 0.78f, 0.95f), new Color(0.47f, 0.86f, 1f));
-        waterMat = new Material(Lit());
+        waterMat = NewLitMaterial();
         waterMat.mainTexture = tex;
         waterMat.color = Color.white;
         waterMat.SetFloat("_Smoothness", 0.55f);
@@ -319,7 +361,7 @@ public static class MatLib
     {
         if (grassMat != null) return grassMat;
         Texture2D tex = CellTex(new Color(0.55f, 0.85f, 0.4f), new Color(0.63f, 0.9f, 0.46f));
-        grassMat = new Material(Lit());
+        grassMat = NewLitMaterial();
         grassMat.mainTexture = tex;
         grassMat.color = Color.white;
         grassMat.SetFloat("_Smoothness", 0.1f);
@@ -330,7 +372,7 @@ public static class MatLib
     public static Material Beach()
     {
         if (beachMat != null) return beachMat;
-        beachMat = new Material(Lit());
+        beachMat = NewLitMaterial();
         beachMat.color = new Color(0.99f, 0.94f, 0.75f);
         beachMat.SetFloat("_Smoothness", 0.1f);
         return beachMat;
@@ -407,6 +449,7 @@ public static class B
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.localPosition = localPos;
         TextMesh tm = go.AddComponent<TextMesh>();
+        go.AddComponent<AutoLocalizeTextMesh>();
         tm.font = UIFont;
         tm.fontSize = 64;
         tm.characterSize = size;
@@ -432,6 +475,14 @@ public static class B
     {
         if (v >= 1000000) return (v / 1000000f).ToString("0.##") + "M";
         if (v >= 1000) return (v / 1000f).ToString("0.##") + "K";
+        return v.ToString();
+    }
+
+    public static string Money(long v)
+    {
+        if (v >= 1000000000L) return (v / 1000000000d).ToString("0.##") + "B";
+        if (v >= 1000000L) return (v / 1000000d).ToString("0.##") + "M";
+        if (v >= 1000L) return (v / 1000d).ToString("0.##") + "K";
         return v.ToString();
     }
 
@@ -477,7 +528,9 @@ public static class B
     // the sun direction or night lighting used by the 3D world.
     static void MakePreviewModelVivid(Transform model)
     {
-        Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+        Material unlitTemplate = Resources.Load<Material>("RuntimeUnlit");
+        Shader unlit = unlitTemplate != null ? unlitTemplate.shader : null;
+        if (unlit == null) unlit = Shader.Find("Universal Render Pipeline/Unlit");
         if (unlit == null) unlit = Shader.Find("Unlit/Texture");
 
         Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);

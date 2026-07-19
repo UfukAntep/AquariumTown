@@ -18,9 +18,9 @@ public static class UIKit
     public static readonly Color TextDark = new Color(0.32f, 0.2f, 0.1f);
     public static readonly Color PanelShade = new Color(0f, 0f, 0f, 0.25f);
 
-    static Sprite rounded, circle, star;
+    static Sprite rounded, circle, star, poop, trophy;
 
-    public static void Clear() { rounded = null; circle = null; star = null; }
+    public static void Clear() { rounded = null; circle = null; star = null; poop = null; trophy = null; }
 
     public static Sprite Rounded()
     {
@@ -86,6 +86,52 @@ public static class UIKit
         return star;
     }
 
+    public static Sprite Poop()
+    {
+        if (poop != null) return poop;
+        int n = 96;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        Color brown = new Color(0.38f, 0.19f, 0.08f, 1f);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                Vector2 p = new Vector2(x, y);
+                bool filled = (p - new Vector2(48f, 25f)).sqrMagnitude < 31f * 31f ||
+                    (p - new Vector2(48f, 48f)).sqrMagnitude < 23f * 23f ||
+                    (p - new Vector2(51f, 67f)).sqrMagnitude < 14f * 14f ||
+                    (p - new Vector2(57f, 79f)).sqrMagnitude < 8f * 8f;
+                tex.SetPixel(x, y, new Color(brown.r, brown.g, brown.b, filled ? 1f : 0f));
+            }
+        tex.Apply();
+        poop = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return poop;
+    }
+
+    public static Sprite Trophy()
+    {
+        if (trophy != null) return trophy;
+        int n = 96;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float half = y >= 43 && y <= 78 ? Mathf.Lerp(19f, 34f, (y - 43f) / 35f) : 0f;
+                bool bowl = half > 0f && Mathf.Abs(x - 48f) <= half;
+                bool stem = y >= 23 && y < 45 && Mathf.Abs(x - 48f) <= 7f;
+                bool basePart = y >= 13 && y < 25 && Mathf.Abs(x - 48f) <= 25f;
+                Vector2 lp = new Vector2((x - 18f) / 17f, (y - 59f) / 20f);
+                Vector2 rp = new Vector2((x - 78f) / 17f, (y - 59f) / 20f);
+                bool handles = lp.sqrMagnitude <= 1f || rp.sqrMagnitude <= 1f;
+                bool innerHandles = new Vector2((x - 18f) / 9f, (y - 59f) / 12f).sqrMagnitude < 1f ||
+                    new Vector2((x - 78f) / 9f, (y - 59f) / 12f).sqrMagnitude < 1f;
+                float a = (bowl || stem || basePart || (handles && !innerHandles)) ? 1f : 0f;
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        trophy = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return trophy;
+    }
+
     // ---------- builders ----------
     public static GameObject Panel(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 offset, Vector2 size, Color c, bool round = true, bool shadow = false)
     {
@@ -128,6 +174,7 @@ public static class UIKit
         GameObject go = new GameObject("Text");
         go.transform.SetParent(parent, false);
         Text t = go.AddComponent<Text>();
+        go.AddComponent<AutoLocalizeText>();
         t.font = B.UIFont; t.fontSize = size; t.fontStyle = FontStyle.Bold;
         t.color = c; t.text = s; t.alignment = anchor;
         t.horizontalOverflow = HorizontalWrapMode.Wrap; // keep text inside its card

@@ -19,6 +19,7 @@ public class Staff : MonoBehaviour
     Tank targetTank;
     Vector3 moveTarget;
     float timer;
+    bool shiftVisible = true;
     const float Speed = 4.2f;
 
     public static Staff Create(int role, Vector3 pos)
@@ -36,7 +37,8 @@ public class Staff : MonoBehaviour
     {
         Color[] cols = {
             new Color(0.7f, 0.4f, 0.9f), new Color(0.25f, 0.7f, 0.6f), new Color(0.9f, 0.6f, 0.2f),
-            new Color(0.5f, 0.65f, 0.5f), new Color(0.2f, 0.6f, 0.85f), new Color(0.8f, 0.75f, 0.5f) };
+            new Color(0.5f, 0.65f, 0.5f), new Color(0.2f, 0.6f, 0.85f), new Color(0.8f, 0.75f, 0.5f),
+            new Color(0.2f, 0.28f, 0.42f), new Color(0.25f, 0.75f, 0.72f) };
         GameObject vroot = new GameObject("Visual");
         vroot.transform.SetParent(transform, false);
         visual = vroot.transform;
@@ -67,6 +69,19 @@ public class Staff : MonoBehaviour
     {
         if (Game.gm == null || Game.register == null) return; // scene restarting
         float dt = Time.deltaTime;
+        if (!Game.gm.StaffOnShift)
+        {
+            Vector3 home = Customer.DoorPos + new Vector3(7f + role * 0.25f, 0f, -12f);
+            if (MoveTo(home, dt) && shiftVisible) SetShiftVisible(false);
+            return;
+        }
+        if (!shiftVisible)
+        {
+            transform.position = Customer.DoorPos + new Vector3(role * 0.2f, 0f, 0f);
+            SetShiftVisible(true);
+            state = S.Idle;
+            timer = 0f;
+        }
         switch (role)
         {
             case 0: TickCashier(dt); break;
@@ -78,6 +93,18 @@ public class Staff : MonoBehaviour
             case 6: TickSecurity(dt); break;
             case 7: TickBeachCleaner(dt); break;
         }
+    }
+
+    void SetShiftVisible(bool visible)
+    {
+        shiftVisible = visible;
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++) renderers[i].enabled = visible;
+    }
+
+    void OnDestroy()
+    {
+        Game.staff.Remove(this);
     }
 
     // ---- beach cleaner: clears shore/beach litter ----
@@ -220,7 +247,11 @@ public class Staff : MonoBehaviour
         Tank t = Game.TankOf(f.species);
         if (t != null && t.HasSpace && Vector3.Distance(transform.position, t.transform.position) < 6f)
         {
-            t.ReserveSlot();
+            if (!t.ReserveSlot())
+            {
+                carriedFish.Insert(0, f);
+                return;
+            }
             Tank tank = t;
             Fish captured = f;
             f.FlyTo(t.RandomWaterPoint(), delegate { if (captured != null) tank.Receive(captured); }, 0.5f);
@@ -254,11 +285,18 @@ public class Staff : MonoBehaviour
 
             case S.MoveToDeliver:
                 targetTank = Game.TankOf(crateSpecies);
-                if (targetTank == null || !targetTank.HasSpace)
+                if (targetTank == null)
                 {
                     for (int i = 0; i < carriedCrates; i++) Game.depot.Store(crateSpecies);
                     ClearCrates();
                     state = S.Idle;
+                    break;
+                }
+                // Keep the load and wait beside the aquarium until a customer
+                // creates room. Do not bounce a full load back into the depot.
+                if (!targetTank.HasSpace)
+                {
+                    MoveTo(targetTank.FrontPoint, dt);
                     break;
                 }
                 if (MoveTo(targetTank.FrontPoint, dt)) { timer = 0f; state = S.Delivering; }
@@ -270,16 +308,15 @@ public class Staff : MonoBehaviour
                 if (timer <= 0f)
                 {
                     timer = 0.2f;
-                    carriedCrates--;
-                    RemoveCrateVisual();
-                    if (targetTank != null && targetTank.HasSpace)
+                    if (targetTank != null && targetTank.HasSpace && targetTank.ReserveSlot())
                     {
-                        targetTank.ReserveSlot();
+                        carriedCrates--;
+                        RemoveCrateVisual();
                         Fish f = Fish.Create(crateSpecies, stackAnchor.position);
                         Tank tank = targetTank;
                         f.FlyTo(tank.RandomWaterPoint(), delegate { if (f != null) tank.Receive(f); }, 0.5f);
                     }
-                    else Game.depot.Store(crateSpecies);
+                    else timer = 0.35f; // full: visibly wait with the remaining crates
                 }
                 break;
         }

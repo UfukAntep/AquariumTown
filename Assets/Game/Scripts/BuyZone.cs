@@ -121,6 +121,7 @@ public class BuyZone : MonoBehaviour
                 int got = Game.gm.SpendTick(want);
                 if (got > 0)
                 {
+                    Sfx.Play(Snd.Spend, 0.3f);
                     paid += got;
                     UpdateText();
                     float frac = Mathf.Clamp01((float)paid / cost);

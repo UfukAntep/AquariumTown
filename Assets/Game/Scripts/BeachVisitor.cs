@@ -1,11 +1,12 @@
 using UnityEngine;
 
-// From level 40 on, tourists come to swim at the beach and leave a mess
+// From level 15 on, tourists come alongside normal shop customers, swim and
+// leave a deliberately serious beach/sea cleanup problem.
 // (toppled loungers, food litter) that raises pollution. Player or the
 // beach-cleaner staff must tidy it up.
 public class BeachManager : MonoBehaviour
 {
-    public const int UnlockLevel = 40;
+    public const int UnlockLevel = 15;
     float timer = 8f;
 
     public static BeachManager Create(Transform parent)
@@ -20,9 +21,9 @@ public class BeachManager : MonoBehaviour
         if (Game.gm == null || Game.gm.Level < UnlockLevel) return;
         timer -= Time.deltaTime;
         if (timer > 0f) return;
-        timer = Random.Range(14f, 26f);
+        timer = Random.Range(8f, 16f);
         int alive = FindObjectsByType<BeachVisitor>(FindObjectsSortMode.None).Length;
-        if (alive < 5) BeachVisitor.Spawn();
+        if (alive < 8) BeachVisitor.Spawn();
     }
 }
 
@@ -97,7 +98,13 @@ public class BeachVisitor : MonoBehaviour
                 timer -= dt;
                 // bob in the shallows
                 transform.position += new Vector3(Mathf.Sin(Time.time * 1.5f), 0f, Mathf.Cos(Time.time * 1.3f)) * 0.4f * dt;
-                if (timer <= 0f) { moveTarget = new Vector3(20f, 0f, -8f); state = S.Leave; LeaveMess(); }
+                if (timer <= 0f)
+                {
+                    if (Game.trash != null) Game.trash.ScatterIntoSea(transform.position, Random.Range(3, 7));
+                    moveTarget = new Vector3(20f, 0f, -8f);
+                    state = S.Leave;
+                    LeaveMess();
+                }
                 break;
             case S.Leave:
                 if (MoveTo(moveTarget, dt)) Destroy(gameObject);
@@ -112,9 +119,9 @@ public class BeachVisitor : MonoBehaviour
             lounger.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 75f); // toppled
         if (Game.trash != null)
         {
-            int n = Random.Range(1, 3);
+            int n = Random.Range(3, 7);
             for (int i = 0; i < n; i++)
-                Game.trash.SpawnLandTrash(loungerSpot + new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f)));
+                Game.trash.SpawnLandTrash(loungerSpot + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f)), Random.value < 0.42f);
         }
     }
 }

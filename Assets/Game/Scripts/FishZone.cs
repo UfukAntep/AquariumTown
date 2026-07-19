@@ -9,8 +9,12 @@ public class Sea : MonoBehaviour
 
     List<Fish> fishes = new List<Fish>();
     float respawnTimer;
-    const int MaxPopulation = 130;
+    const int MaxPopulation = 150; // about 15% denser than the previous sea
     const int PerSpecies = 3; // per-species cap so ALL 80 species share the sea
+
+    // Three of every seven species may have one extra individual. Across the
+    // full roster this is a ~14% increase without letting one species dominate.
+    static int SpeciesCap(int sp) { return PerSpecies + (sp % 7 < 3 ? 1 : 0); }
 
     public static Sea Create(Rect area, Transform parent)
     {
@@ -21,7 +25,7 @@ public class Sea : MonoBehaviour
         Game.sea = s;
         // life EVERYWHERE: every species lives in the sea from the start,
         // rare (high level) ones live farther from the shore
-        for (int i = 0; i < 95; i++) s.SpawnOne();
+        for (int i = 0; i < 110; i++) s.SpawnOne();
         return s;
     }
 
@@ -46,10 +50,11 @@ public class Sea : MonoBehaviour
 
     Bounds SwimBounds(Rect r)
     {
-        // fish swim UNDER the water surface (depth feel)
+        // Keep wildlife just under the surface. Deep swimmers were only
+        // readable as black silhouettes through the water material.
         return new Bounds(
-            new Vector3(r.x + r.width * 0.5f, 0.05f, r.y + r.height * 0.5f),
-            new Vector3(r.width, 0.35f, r.height));
+            new Vector3(r.x + r.width * 0.5f, 0.41f, r.y + r.height * 0.5f),
+            new Vector3(r.width, 0.14f, r.height));
     }
 
     void SpawnOne()
@@ -61,14 +66,14 @@ public class Sea : MonoBehaviour
         for (int attempt = 0; attempt < 8; attempt++)
         {
             int sp = Random.Range(0, max + 1);
-            if (counts[sp] < PerSpecies) { Spawn(sp); return; }
+            if (counts[sp] < SpeciesCap(sp)) { Spawn(sp); return; }
         }
     }
 
     void Spawn(int sp)
     {
         Rect band = BandFor(sp);
-        Vector3 pos = new Vector3(Random.Range(band.xMin, band.xMax), 0.05f, Random.Range(band.yMin, band.yMax));
+        Vector3 pos = new Vector3(Random.Range(band.xMin, band.xMax), 0.41f, Random.Range(band.yMin, band.yMax));
         Fish f = Fish.Create(sp, pos);
         f.SetWild(SwimBounds(band));
         fishes.Add(f);
@@ -76,7 +81,7 @@ public class Sea : MonoBehaviour
 
     public void SpawnGolden()
     {
-        Vector3 pos = new Vector3(area.xMin + 8f, 0.05f, Random.Range(area.yMin + 10f, area.yMax - 10f));
+        Vector3 pos = new Vector3(area.xMin + 8f, 0.43f, Random.Range(area.yMin + 10f, area.yMax - 10f));
         Fish f = Fish.Create(Mathf.Max(0, Game.gm.unlockedCount - 1), pos);
         f.SetWild(SwimBounds(new Rect(area.xMin, area.yMin, 40f, area.height)));
         f.MakeGolden();
@@ -180,6 +185,17 @@ public class Sea : MonoBehaviour
             else if (d < bestLockedD) { bestLockedD = d; bestLocked = f; }
         }
         return best != null ? best : bestLocked;
+    }
+
+    public Fish FindGoldenNear(Vector3 pos, float range)
+    {
+        for (int i = 0; i < fishes.Count; i++)
+        {
+            Fish fish = fishes[i];
+            if (fish != null && fish.golden && fish.state == Fish.State.Wild &&
+                Vector3.Distance(pos, fish.transform.position) <= range) return fish;
+        }
+        return null;
     }
 
     // Radar aims where the player is FACING: only fish inside the cone count.

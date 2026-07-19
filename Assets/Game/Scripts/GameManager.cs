@@ -15,6 +15,8 @@ public class GameManager : MonoBehaviour
     public bool[] techOwned = new bool[6];   // 0 pusula, 1 harita, 2 navigasyon(minimap), 3 uzaktan kontrol, 4 otomatik radar, 5 otomatik dukkan
     public bool[] techEnabled = new bool[6]; // owned techs can be toggled on/off
     public bool[] discovered = new bool[SpeciesInfo.Count]; // caught at least once (VERITABANI)
+    public int jetskiLevel = 1;
+    public int rampLevel = 1;
     public string shopName = "";
     public bool freshStart; // true only on the very first session of a save
     public int language = -1; // -1 = not chosen yet -> show language picker
@@ -22,6 +24,8 @@ public class GameManager : MonoBehaviour
     // reviews (Google-style): running totals + today's tally
     public int reviewCount, reviewStarSum;
     public int dayReviewCount, dayStarSum;
+    public int totalCustomers;
+    public long totalRevenue;
 
     // day cycle
     public int dayNumber = 1;
@@ -50,6 +54,9 @@ public class GameManager : MonoBehaviour
     public static bool SkipMenuOnce;
 
     float saveTimer;
+    bool hadPositiveMoney;
+    bool bankruptcyWarningShown;
+    bool bankruptcyTriggered;
 
     public int Level { get { return unlockedCount; } }
     public int Capacity { get { return 6 + upg[(int)Upg.Capacity] * 3; } }
@@ -75,8 +82,14 @@ public class GameManager : MonoBehaviour
         Game.gm = this;
         for (int i = 0; i < tankLevel.Length; i++) tankLevel[i] = 1;
         Load();
+        // The starter species is available from the first minute of every save,
+        // so its database entry must never appear locked.
+        discovered[0] = true;
+        hadPositiveMoney = Money > 0;
+        language = Loc.Lang;
         if (unlockedCount < 1) unlockedCount = 1;
         zoneOpen[0] = true; // starting area = zone 0 (first 20 tanks)
+        gameObject.AddComponent<TrophySystem>();
     }
 
     public bool ZoneOpen(int b) { return b >= 0 && b < zoneOpen.Length && zoneOpen[b]; }
@@ -112,7 +125,34 @@ public class GameManager : MonoBehaviour
     public void RegisterIncome(int amount, bool fromCustomer)
     {
         dayIncome += amount;
+        totalRevenue += Mathf.Max(0, amount);
         if (fromCustomer) { dayCustomers++; dayFishSold++; }
+    }
+
+    public void RegisterCustomerArrival()
+    {
+        totalCustomers++;
+    }
+
+    public long CompanyMarketValue
+    {
+        get
+        {
+            long value = Mathf.Max(0, Money) + totalRevenue * 2L + (long)Level * Level * 4000L;
+            for (int i = 0; i < upg.Length; i++) value += (long)upg[i] * UpgInfo.BaseCost((Upg)i) * 4L;
+            for (int i = 0; i < unlockedCount && i < tankLevel.Length; i++)
+            {
+                value += (long)tankLevel[i] * SpeciesInfo.Price(i) * 10L;
+                Tank tank = Game.TankOf(i);
+                if (tank != null) value += (long)tank.Count * SpeciesInfo.Price(i);
+            }
+            for (int i = 0; i < decorOwned.Length; i++) if (decorOwned[i]) value += DecorInfo.Costs[i];
+            for (int i = 1; i < zoneOpen.Length; i++) if (zoneOpen[i]) value += ZoneCost(i);
+            for (int i = 0; i < techOwned.Length; i++) if (techOwned[i]) value += TechCosts[i];
+            value += (long)TotalDailySalary() * 10L + (long)(toiletCount + sinkCount) * 800L;
+            double brandMultiplier = 0.75d + Satisfaction / 200d;
+            return System.Math.Max(0L, (long)(value * brandMultiplier));
+        }
     }
 
     public bool salariesPaid;
@@ -127,12 +167,12 @@ public class GameManager : MonoBehaviour
         int wage = TotalDailySalary() + ToiletDaily();
         if (wage > 0)
         {
-            int paid = Mathf.Min(wage, Money);
-            Money -= paid;
-            dayExpense += paid;
+            // Wages are contractual: the full amount is recorded and may put
+            // the shop into debt, which is handled by the bankruptcy system.
+            Money -= wage;
+            dayExpense += wage;
             if (Game.ui != null) Game.ui.OnMoneyChanged();
-            if (paid < wage && Game.ui != null)
-                Game.ui.Toast("Giderleri tam odeyemedin! Personel mutsuz.");
+            CheckBankruptcy();
         }
         return wage;
     }
@@ -158,12 +198,14 @@ public class GameManager : MonoBehaviour
         if (Game.ui != null) Game.ui.Toast("Gun " + dayNumber + " basladi! Gunaydin!");
     }
 
-    public bool GetHistory(int day, out int c, out int f, out int inc, out int exp)
+    public bool GetHistory(int day, out int c, out int f, out int inc, out int exp, out int reviews, out int reviewStars)
     {
         c = PlayerPrefs.GetInt(P + "H" + day + "_c", -1);
         f = PlayerPrefs.GetInt(P + "H" + day + "_f", 0);
         inc = PlayerPrefs.GetInt(P + "H" + day + "_i", 0);
         exp = PlayerPrefs.GetInt(P + "H" + day + "_e", 0);
+        reviews = PlayerPrefs.GetInt(P + "H" + day + "_rc", 0);
+        reviewStars = PlayerPrefs.GetInt(P + "H" + day + "_rs", 0);
         return c >= 0;
     }
 
@@ -181,11 +223,20 @@ public class GameManager : MonoBehaviour
         return stars;
     }
 
+    public void AddOneStarReview()
+    {
+        reviewCount++; reviewStarSum++;
+        dayReviewCount++; dayStarSum++;
+        Reviews.AddAttacked();
+    }
+
     // ---------- money ----------
     public void AddMoney(int v)
     {
         Money += v;
+        if (Money > 0) hadPositiveMoney = true;
         if (Game.ui != null) Game.ui.OnMoneyChanged();
+        CheckBankruptcy();
     }
 
     public bool TrySpend(int amount)
@@ -194,6 +245,7 @@ public class GameManager : MonoBehaviour
         Money -= amount;
         dayExpense += amount;
         if (Game.ui != null) Game.ui.OnMoneyChanged();
+        CheckBankruptcy();
         return true;
     }
 
@@ -205,6 +257,7 @@ public class GameManager : MonoBehaviour
             Money -= take;
             dayExpense += take;
             if (Game.ui != null) Game.ui.OnMoneyChanged();
+            CheckBankruptcy();
         }
         return take;
     }
@@ -237,7 +290,6 @@ public class GameManager : MonoBehaviour
         if (unlockedCount >= SpeciesInfo.Count) return;
         int sp = unlockedCount;
         unlockedCount++;
-        Sfx.Play(Snd.Buy);
         if (Game.ui != null)
         {
             Game.ui.RefreshLevel();
@@ -268,6 +320,84 @@ public class GameManager : MonoBehaviour
         return true;
     }
 
+    public bool TryFireStaff(int role)
+    {
+        if (role < 0 || role >= staffCounts.Length || staffCounts[role] <= 0) return false;
+        for (int i = Game.staff.Count - 1; i >= 0; i--)
+        {
+            Staff worker = Game.staff[i];
+            if (worker != null && worker.role == role)
+            {
+                Destroy(worker.gameObject);
+                break;
+            }
+        }
+        staffCounts[role]--;
+        Sfx.Play(Snd.Tick, 0.45f);
+        return true;
+    }
+
+    public int TotalStaffCount()
+    {
+        int total = 0;
+        for (int i = 0; i < staffCounts.Length; i++) total += staffCounts[i];
+        return total;
+    }
+
+    public bool StaffOnShift { get { return clockMinutes >= 8f * 60f && clockMinutes < 22f * 60f; } }
+
+    public int JetskiUpgradeCost() { return 900 + jetskiLevel * 650; }
+    public int RampUpgradeCost() { return 300 + rampLevel * 350; }
+    public float JetskiSpeedMultiplier { get { return 2.4f + (jetskiLevel - 1) * 0.48f; } }
+    public bool TryUpgradeJetski()
+    {
+        if (!decorOwned[7] || jetskiLevel >= 5 || !TrySpend(JetskiUpgradeCost())) return false;
+        jetskiLevel++;
+        if (Game.jetski != null) Game.jetski.ApplyLevelVisual();
+        Sfx.Play(Snd.Buy);
+        return true;
+    }
+    public bool TryUpgradeRamp()
+    {
+        if (!decorOwned[6] || rampLevel >= 5 || !TrySpend(RampUpgradeCost())) return false;
+        rampLevel++;
+        if (Game.ramp != null) Game.ramp.ApplyLevelVisual();
+        Sfx.Play(Snd.Buy);
+        return true;
+    }
+
+    public int BankruptcyLimit { get { return 500 + Level * 250; } }
+    public bool BankruptcyTriggered { get { return bankruptcyTriggered; } }
+
+    void CheckBankruptcy()
+    {
+        if (bankruptcyTriggered) return;
+        if (Money <= -BankruptcyLimit)
+        {
+            bankruptcyTriggered = true;
+            Time.timeScale = 0f;
+            if (Game.ui != null)
+                Game.ui.ShowInfo("OYUN BITTI - IFLAS",
+                    "Borcun -$" + B.Money(-Money) + " oldu.\nBu seviyedeki iflas sinirin -$" + B.Money(BankruptcyLimit) + " idi.\nDukkan kapandi ve ana menuye donuyorsun.",
+                    FinishBankruptcy);
+            else FinishBankruptcy();
+        }
+        else if (Money <= 0 && (hadPositiveMoney || Money < 0) && !bankruptcyWarningShown)
+        {
+            bankruptcyWarningShown = true;
+            if (Game.ui != null) Game.ui.Toast("DIKKAT: Borcun -$" + B.Money(BankruptcyLimit) + " olursa iflas edeceksin!", 6f);
+        }
+    }
+
+    void FinishBankruptcy()
+    {
+        int selectedLanguage = Loc.Lang;
+        PlayerPrefs.DeleteAll();
+        Loc.Set(selectedLanguage);
+        Time.timeScale = 1f;
+        GameBootstrap.GoToMenu();
+    }
+
     public bool HasDepot() { return Game.depot != null; }
 
     public bool NeedsToilet
@@ -278,6 +408,11 @@ public class GameManager : MonoBehaviour
     // ---------- tank upgrades ----------
     public int TankUpgCost(int sp) { return SpeciesInfo.Price(sp) * 12 * tankLevel[sp]; }
     public float TankPriceMult(int sp) { return 1f + 0.15f * (tankLevel[sp] - 1); }
+    public int TankCapacity(int sp)
+    {
+        int[] capacities = { 5, 6, 7, 8, 10 };
+        return capacities[Mathf.Clamp(tankLevel[sp] - 1, 0, capacities.Length - 1)];
+    }
 
     public bool TryUpgradeTank(int sp)
     {
@@ -323,6 +458,15 @@ public class GameManager : MonoBehaviour
         prevClock = clockMinutes;
         clockMinutes += Time.deltaTime;
         if (clockMinutes >= 1440f) clockMinutes -= 1440f;
+        CheckBankruptcy();
+
+        if (prevClock < 22f * 60f && clockMinutes >= 22f * 60f && TotalStaffCount() > 0 &&
+            PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0)
+        {
+            PlayerPrefs.SetInt(P + "StaffShiftInfo", 1);
+            PlayerPrefs.Save();
+            if (Game.ui != null) Game.ui.Toast("Saat 22:00! Calisanlar paydos etti. Sabah 08:00'de geri gelecekler.", 7f);
+        }
 
         // Auto shop tech
         if (techOwned[5] && techEnabled[5])
@@ -406,12 +550,17 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "Sinks", sinkCount);
         PlayerPrefs.SetInt(P + "ToiletArea", toiletAreaOpen ? 1 : 0);
         PlayerPrefs.SetInt(P + "StarterBackArea", starterBackAreaOpen ? 1 : 0);
+        language = Loc.Lang;
         PlayerPrefs.SetInt(P + "Lang", language);
         PlayerPrefs.SetInt(P + "RevCount", reviewCount);
         PlayerPrefs.SetInt(P + "RevSum", reviewStarSum);
+        PlayerPrefs.SetInt(P + "TotalCustomers", totalCustomers);
+        PlayerPrefs.SetString(P + "TotalRevenue", totalRevenue.ToString());
         PlayerPrefs.SetInt(P + "Open", shopOpen ? 1 : 0);
         PlayerPrefs.SetInt(P + "AutoOpen", autoOpenTime);
         PlayerPrefs.SetInt(P + "AutoClose", autoCloseTime);
+        PlayerPrefs.SetInt(P + "JetskiLevel", jetskiLevel);
+        PlayerPrefs.SetInt(P + "RampLevel", rampLevel);
         PlayerPrefs.SetFloat(P + "Clock", clockMinutes);
         for (int i = 0; i < upg.Length; i++) PlayerPrefs.SetInt(P + "Upg" + i, upg[i]);
         for (int i = 0; i < staffCounts.Length; i++) PlayerPrefs.SetInt(P + "Staff" + i, staffCounts[i]);
@@ -456,12 +605,14 @@ public class GameManager : MonoBehaviour
         sinkCount = PlayerPrefs.GetInt(P + "Sinks", 0);
         toiletAreaOpen = PlayerPrefs.GetInt(P + "ToiletArea", 0) == 1;
         starterBackAreaOpen = PlayerPrefs.GetInt(P + "StarterBackArea", 0) == 1;
-        language = PlayerPrefs.GetInt(P + "Lang", -1);
+        language = Loc.Chosen ? Loc.Lang : PlayerPrefs.GetInt(P + "Lang", -1);
         reviewCount = PlayerPrefs.GetInt(P + "RevCount", 0);
         reviewStarSum = PlayerPrefs.GetInt(P + "RevSum", 0);
         shopOpen = PlayerPrefs.GetInt(P + "Open", 1) == 1;
         autoOpenTime = PlayerPrefs.GetInt(P + "AutoOpen", 8);
         autoCloseTime = PlayerPrefs.GetInt(P + "AutoClose", 22);
+        jetskiLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "JetskiLevel", 1), 1, 5);
+        rampLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "RampLevel", 1), 1, 5);
         clockMinutes = PlayerPrefs.GetFloat(P + "Clock", 9 * 60f);
         for (int i = 0; i < upg.Length; i++) upg[i] = PlayerPrefs.GetInt(P + "Upg" + i, 0);
         for (int i = 0; i < staffCounts.Length; i++) staffCounts[i] = PlayerPrefs.GetInt(P + "Staff" + i, 0);
@@ -478,6 +629,22 @@ public class GameManager : MonoBehaviour
         dayFishSold = PlayerPrefs.GetInt(P + "DayF", 0);
         dayIncome = PlayerPrefs.GetInt(P + "DayI", 0);
         dayExpense = PlayerPrefs.GetInt(P + "DayE", 0);
+        totalCustomers = PlayerPrefs.GetInt(P + "TotalCustomers", -1);
+        long parsedRevenue;
+        if (!long.TryParse(PlayerPrefs.GetString(P + "TotalRevenue", ""), out parsedRevenue)) parsedRevenue = -1;
+        totalRevenue = parsedRevenue;
+        if (totalCustomers < 0 || totalRevenue < 0)
+        {
+            int historicalCustomers = 0;
+            long historicalRevenue = 0;
+            for (int d = 1; d < dayNumber; d++)
+            {
+                historicalCustomers += Mathf.Max(0, PlayerPrefs.GetInt(P + "H" + d + "_c", 0));
+                historicalRevenue += Mathf.Max(0, PlayerPrefs.GetInt(P + "H" + d + "_i", 0));
+            }
+            if (totalCustomers < 0) totalCustomers = historicalCustomers + dayCustomers;
+            if (totalRevenue < 0) totalRevenue = historicalRevenue + dayIncome;
+        }
         string disc = PlayerPrefs.GetString(P + "Disc", "");
         for (int i = 0; i < discovered.Length && i < disc.Length; i++) discovered[i] = disc[i] == '1';
         freshStart = !PlayerPrefs.HasKey(P + "Money"); // brand-new save
@@ -501,7 +668,9 @@ public class GameManager : MonoBehaviour
 
     public static void NewGame()
     {
+        int selectedLanguage = Loc.Chosen ? Loc.Lang : -1;
         PlayerPrefs.DeleteAll();
+        if (selectedLanguage >= 0) Loc.Set(selectedLanguage);
         GameBootstrap.LaunchGame();
     }
 

@@ -13,7 +13,7 @@ public class CashRegister : MonoBehaviour
     bool playerAtSpot;
     public Transform monitor;
 
-    const int MaxBillVisuals = 300;
+    bool billRoutineRunning;
 
     public Vector3 OperatorSpot { get { return transform.position + new Vector3(0f, 0f, 2f); } }
     public bool HasOperator { get { return CashierPresent || playerAtSpot; } }
@@ -76,27 +76,26 @@ public class CashRegister : MonoBehaviour
         Game.gm.RegisterIncome(amount, fromCustomer);
         if (fromCustomer) QuestSystem.OnSell();
         Sfx.Play(Snd.Cash, 0.4f);
-        StartCoroutine(TickBills());
+        if (!billRoutineRunning) StartCoroutine(TickBills());
         if (pileText != null) pileText.text = "$" + B.Money(PileAmount);
     }
 
     Vector3 BillSlot(int idx)
     {
-        // tight 4 x 5 grid per layer, stacked into a satisfying solid block
-        int perLayer = 20;
+        // Every object is exactly $1. A wider grid keeps large payments tidy.
+        int perLayer = 80;
         int layer = idx / perLayer;
         int inLayer = idx % perLayer;
-        int col = inLayer % 4, row = inLayer / 4;
-        return new Vector3(col * 0.72f - 1.08f, 0.05f + layer * 0.16f, row * 1.02f - 2.04f);
+        int col = inLayer % 10, row = inLayer / 10;
+        return new Vector3(col * 0.38f - 1.71f, 0.05f + layer * 0.08f, row * 0.52f - 1.82f);
     }
 
     System.Collections.IEnumerator TickBills()
     {
+        billRoutineRunning = true;
         Material green = MatLib.Get(new Color(0.32f, 0.8f, 0.42f));
         Material greenD = MatLib.Get(new Color(0.24f, 0.65f, 0.34f));
-        int wanted = Mathf.Min(PileAmount / 2 + 1, MaxBillVisuals);
-        int guard = 0;
-        while (bills.Count < wanted && guard++ < 30)
+        while (bills.Count < PileAmount)
         {
             int idx = bills.Count;
             Vector3 slot = BillSlot(idx);
@@ -116,8 +115,9 @@ public class CashRegister : MonoBehaviour
             bills.Add(b);
             StartCoroutine(DropBill(b.transform, slot));
             Sfx.Play(Snd.Tick, 0.25f);
-            yield return new WaitForSeconds(0.045f);
+            yield return new WaitForSeconds(0.018f);
         }
+        billRoutineRunning = false;
     }
 
     System.Collections.IEnumerator DropBill(Transform b, Vector3 to)
@@ -144,6 +144,7 @@ public class CashRegister : MonoBehaviour
     {
         for (int i = 0; i < bills.Count; i++) if (bills[i] != null) Destroy(bills[i]);
         bills.Clear();
+        billRoutineRunning = false;
         if (pileText != null) pileText.text = "";
     }
 
@@ -160,7 +161,7 @@ public class CashRegister : MonoBehaviour
             Game.gm.AddMoney(PileAmount);
             if (Game.ui != null) Game.ui.MoneyPunch();
             PileAmount = 0;
-            Sfx.Play(Snd.Collect, 0.8f);
+            Sfx.Play(Snd.MoneyPickup, 0.85f);
             ClearBills();
         }
     }
