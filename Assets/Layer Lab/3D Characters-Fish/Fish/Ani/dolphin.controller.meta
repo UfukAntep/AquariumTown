@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6262bc21871a00245816b6d70cefc136
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 282104
+  packageName: 3D Characters - Fish
+  packageVersion: 1.0.2
+  assetPath: Assets/Layer Lab/3D Characters-Fish/Fish/Ani/dolphin.controller
+  uploadId: 812556

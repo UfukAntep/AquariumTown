@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 485f1f7e76e52774ca369bbcfcd271aa
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 282104
+  packageName: 3D Characters - Fish
+  packageVersion: 1.0.2
+  assetPath: Assets/Layer Lab/3D Characters-Fish/Fish/Ani/seahorse.controller
+  uploadId: 812556

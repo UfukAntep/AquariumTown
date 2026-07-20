@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: d335996c1c7274efba30aa43eec9f005
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 282104
+  packageName: 3D Characters - Fish
+  packageVersion: 1.0.2
+  assetPath: Assets/Layer Lab/3D Characters-Fish/Fish/Scripts/FreeSwimming.cs
+  uploadId: 812556

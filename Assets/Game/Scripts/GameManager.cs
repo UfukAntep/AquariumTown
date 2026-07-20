@@ -9,6 +9,8 @@ public class GameManager : MonoBehaviour
     public int[] upg = new int[UpgInfo.Count];
     public int unlockedCount = 1;             // species 0..unlockedCount-1 are unlocked; Level == unlockedCount
     public int[] staffCounts = new int[StaffInfo.RoleCount];
+    public int[] staffLevel = new int[StaffInfo.RoleCount];
+    public int[] shopUpg = new int[4]; // quake, alarm, hygiene, efficiency
     public int[] tankLevel = new int[SpeciesInfo.Count];
     public bool[] decorOwned = new bool[DecorInfo.Count];
     public bool[] zoneOpen = new bool[5]; // shop expansion areas (zone 0 free)
@@ -36,6 +38,7 @@ public class GameManager : MonoBehaviour
     public int sinkCount;
     public bool toiletAreaOpen;      // toilet annex unlocked (paid on the spot)
     public bool starterBackAreaOpen; // small rear section of the starting shop
+    public bool level5QuakeTutorialDone;
     public bool shopOpen = true;
     public int autoOpenTime = 8;
     public int autoCloseTime = 22;
@@ -73,14 +76,17 @@ public class GameManager : MonoBehaviour
         get
         {
             float clean = Game.toilets != null ? Game.toilets.CleanToiletCount + Game.toilets.CleanSinkCount * 0.5f : 0f;
-            return Mathf.Pow(0.8f, clean);
+            return Mathf.Pow(0.8f, clean) * Mathf.Pow(0.9f, shopUpg[2]);
         }
     }
+    public float QuakeResistance { get { return 0.12f * shopUpg[0]; } }
+    public float ThiefTimeBonus { get { return 2f * shopUpg[1]; } }
 
     void Awake()
     {
         Game.gm = this;
         for (int i = 0; i < tankLevel.Length; i++) tankLevel[i] = 1;
+        for (int i = 0; i < staffLevel.Length; i++) staffLevel[i] = 1;
         Load();
         // The starter species is available from the first minute of every save,
         // so its database entry must never appear locked.
@@ -140,6 +146,7 @@ public class GameManager : MonoBehaviour
         {
             long value = Mathf.Max(0, Money) + totalRevenue * 2L + (long)Level * Level * 4000L;
             for (int i = 0; i < upg.Length; i++) value += (long)upg[i] * UpgInfo.BaseCost((Upg)i) * 4L;
+            for (int i = 0; i < shopUpg.Length; i++) value += (long)shopUpg[i] * ShopUpgradeCost(i) * 3L;
             for (int i = 0; i < unlockedCount && i < tankLevel.Length; i++)
             {
                 value += (long)tankLevel[i] * SpeciesInfo.Price(i) * 10L;
@@ -157,7 +164,27 @@ public class GameManager : MonoBehaviour
 
     public bool salariesPaid;
 
-    public int ToiletDaily() { return (toiletCount + sinkCount) * ToiletDailyCost; }
+    public int ToiletDaily()
+    {
+        float discount = 1f - 0.08f * shopUpg[3];
+        return Mathf.RoundToInt((toiletCount + sinkCount) * ToiletDailyCost * discount);
+    }
+
+    public int ShopUpgradeCost(int index)
+    {
+        int[] bases = { 900, 700, 650, 600 };
+        if (index < 0 || index >= shopUpg.Length) return int.MaxValue;
+        return bases[index] * (shopUpg[index] + 1);
+    }
+
+    public bool TryBuyShopUpgrade(int index)
+    {
+        if (index < 0 || index >= shopUpg.Length || shopUpg[index] >= 5) return false;
+        if (!TrySpend(ShopUpgradeCost(index))) return false;
+        shopUpg[index]++;
+        Sfx.Play(Snd.Buy, 0.8f);
+        return true;
+    }
 
     // Pay staff salaries + toilet running costs once per day (day expense).
     public int ApplySalaries()
@@ -298,13 +325,46 @@ public class GameManager : MonoBehaviour
         GameBootstrap.OnSpeciesUnlocked(sp);
     }
 
+    public bool ClaimLevel5QuakeTutorial()
+    {
+        if (Level != 5 || level5QuakeTutorialDone) return false;
+        level5QuakeTutorialDone = true;
+        Save();
+        return true;
+    }
+
     // ---------- staff (DAILY SALARY model, no upfront fee) ----------
-    public int StaffSalary(int role) { return StaffInfo.Salary[role]; }
+    public int StaffSalary(int role)
+    {
+        return Mathf.RoundToInt(StaffInfo.Salary[role] * (1f + 0.15f * (staffLevel[role] - 1)));
+    }
+
+    public int StaffTrainingCost(int role) { return StaffInfo.Salary[role] * (staffLevel[role] + 1) * 4; }
+    public float StaffSpeedMultiplier(int role) { return 0.85f + 0.2f * (staffLevel[role] - 1); }
+    public float StaffWorkTimeMultiplier(int role) { return 1f / (1f + 0.18f * (staffLevel[role] - 1)); }
+    public int StaffCapacity(int role)
+    {
+        int level = staffLevel[role];
+        if (role == 1) return 2 + level * 2;
+        if (role == 2) return 3 + level * 2;
+        if (role == 3 || role == 5 || role == 7) return 2 + level;
+        if (role == 4) return 3 + level * 2;
+        return 1;
+    }
+
+    public bool TryTrainStaff(int role)
+    {
+        if (role < 0 || role >= staffLevel.Length || staffCounts[role] <= 0 || staffLevel[role] >= 5) return false;
+        if (!TrySpend(StaffTrainingCost(role))) return false;
+        staffLevel[role]++;
+        Sfx.Play(Snd.LevelUp, 0.75f);
+        return true;
+    }
 
     public int TotalDailySalary()
     {
         int t = 0;
-        for (int r = 0; r < StaffInfo.RoleCount; r++) t += staffCounts[r] * StaffInfo.Salary[r];
+        for (int r = 0; r < StaffInfo.RoleCount; r++) t += staffCounts[r] * StaffSalary(r);
         return t;
     }
 
@@ -392,8 +452,10 @@ public class GameManager : MonoBehaviour
     void FinishBankruptcy()
     {
         int selectedLanguage = Loc.Lang;
+        int[] controls = ControlBindings.Snapshot();
         PlayerPrefs.DeleteAll();
         Loc.Set(selectedLanguage);
+        ControlBindings.Restore(controls);
         Time.timeScale = 1f;
         GameBootstrap.GoToMenu();
     }
@@ -550,6 +612,7 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "Sinks", sinkCount);
         PlayerPrefs.SetInt(P + "ToiletArea", toiletAreaOpen ? 1 : 0);
         PlayerPrefs.SetInt(P + "StarterBackArea", starterBackAreaOpen ? 1 : 0);
+        PlayerPrefs.SetInt(P + "Level5QuakeTutorial", level5QuakeTutorialDone ? 1 : 0);
         language = Loc.Lang;
         PlayerPrefs.SetInt(P + "Lang", language);
         PlayerPrefs.SetInt(P + "RevCount", reviewCount);
@@ -563,7 +626,9 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "RampLevel", rampLevel);
         PlayerPrefs.SetFloat(P + "Clock", clockMinutes);
         for (int i = 0; i < upg.Length; i++) PlayerPrefs.SetInt(P + "Upg" + i, upg[i]);
+        for (int i = 0; i < shopUpg.Length; i++) PlayerPrefs.SetInt(P + "ShopUpg" + i, shopUpg[i]);
         for (int i = 0; i < staffCounts.Length; i++) PlayerPrefs.SetInt(P + "Staff" + i, staffCounts[i]);
+        for (int i = 0; i < staffLevel.Length; i++) PlayerPrefs.SetInt(P + "StaffLevel" + i, staffLevel[i]);
         for (int i = 0; i < decorOwned.Length; i++) PlayerPrefs.SetInt(P + "Decor" + i, decorOwned[i] ? 1 : 0);
         for (int i = 0; i < zoneOpen.Length; i++) PlayerPrefs.SetInt(P + "Zone" + i, zoneOpen[i] ? 1 : 0);
         for (int i = 0; i < techOwned.Length; i++)
@@ -605,6 +670,7 @@ public class GameManager : MonoBehaviour
         sinkCount = PlayerPrefs.GetInt(P + "Sinks", 0);
         toiletAreaOpen = PlayerPrefs.GetInt(P + "ToiletArea", 0) == 1;
         starterBackAreaOpen = PlayerPrefs.GetInt(P + "StarterBackArea", 0) == 1;
+        level5QuakeTutorialDone = PlayerPrefs.GetInt(P + "Level5QuakeTutorial", 0) == 1;
         language = Loc.Chosen ? Loc.Lang : PlayerPrefs.GetInt(P + "Lang", -1);
         reviewCount = PlayerPrefs.GetInt(P + "RevCount", 0);
         reviewStarSum = PlayerPrefs.GetInt(P + "RevSum", 0);
@@ -615,7 +681,9 @@ public class GameManager : MonoBehaviour
         rampLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "RampLevel", 1), 1, 5);
         clockMinutes = PlayerPrefs.GetFloat(P + "Clock", 9 * 60f);
         for (int i = 0; i < upg.Length; i++) upg[i] = PlayerPrefs.GetInt(P + "Upg" + i, 0);
+        for (int i = 0; i < shopUpg.Length; i++) shopUpg[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "ShopUpg" + i, 0), 0, 5);
         for (int i = 0; i < staffCounts.Length; i++) staffCounts[i] = PlayerPrefs.GetInt(P + "Staff" + i, 0);
+        for (int i = 0; i < staffLevel.Length; i++) staffLevel[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "StaffLevel" + i, 1), 1, 5);
         for (int i = 0; i < decorOwned.Length; i++) decorOwned[i] = PlayerPrefs.GetInt(P + "Decor" + i, 0) == 1;
         for (int i = 0; i < zoneOpen.Length; i++) zoneOpen[i] = PlayerPrefs.GetInt(P + "Zone" + i, 0) == 1;
         for (int i = 0; i < techOwned.Length; i++)
@@ -669,8 +737,10 @@ public class GameManager : MonoBehaviour
     public static void NewGame()
     {
         int selectedLanguage = Loc.Chosen ? Loc.Lang : -1;
+        int[] controls = ControlBindings.Snapshot();
         PlayerPrefs.DeleteAll();
         if (selectedLanguage >= 0) Loc.Set(selectedLanguage);
+        ControlBindings.Restore(controls);
         GameBootstrap.LaunchGame();
     }
 

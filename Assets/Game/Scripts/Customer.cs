@@ -283,7 +283,7 @@ public class Customer : MonoBehaviour
                 if (MoveTo(moveTarget, dt) && qi == 0 && Game.register.HasOperator)
                 {
                     state = CState.Paying;
-                    timer = 0.7f;
+                    timer = Game.register.CashierPresent ? 0.9f * Game.gm.StaffWorkTimeMultiplier(0) : 0.7f;
                 }
                 break;
 

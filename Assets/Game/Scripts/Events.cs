@@ -74,6 +74,11 @@ public class EventManager : MonoBehaviour
             Tank t = targets[b];
             if (t != null && !t.broken)
             {
+                if (Game.gm != null && Random.value < Game.gm.QuakeResistance)
+                {
+                    if (Game.ui != null) Game.ui.Toast("Guclendirilmis bir akvaryum depreme dayandi!");
+                    continue;
+                }
                 t.Break();
                 Sfx.Play(Snd.Crash, 0.6f);
             }
@@ -132,6 +137,7 @@ public class Thief : MonoBehaviour
         t.visual = vroot.transform;
         B.Stickman(t.visual, new Color(0.35f, 0.5f, 0.95f));
         t.moveTarget = Customer.GateInside;
+        if (Game.gm != null) t.fleeTimer = 20f + Game.gm.ThiefTimeBonus;
         t.toiletThief = Game.toilets != null && Game.toilets.CanStealToilet && Random.value < 0.35f;
         return t;
     }
@@ -244,7 +250,7 @@ public class Thief : MonoBehaviour
                         SpeciesInfo.Build(stolenSpecies, loot.transform, 0.5f);
                     }
                     state = TState.Flee;
-                    fleeTimer = 20f;
+                    fleeTimer = 20f + (Game.gm != null ? Game.gm.ThiefTimeBonus : 0f);
                     moveTarget = FleePoint();
                     speed = 5.6f;
                 }

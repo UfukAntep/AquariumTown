@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class GameBootstrap : MonoBehaviour
 {
@@ -69,13 +70,31 @@ public class GameBootstrap : MonoBehaviour
     public static void LaunchGame()
     {
         GameManager.SkipMenuOnce = true;
+        LoadingScreen.BeginGameLoad();
+    }
+
+    public static System.Collections.IEnumerator LoadGameRoutine()
+    {
+        LoadingScreen.Report(0.02f, "Kayit hazirlaniyor...");
+        yield return null; // ensure the loading canvas is rendered before work starts
         if (Application.CanStreamedLevelBeLoaded("Game"))
         {
             PrepareRestart();
             Time.timeScale = 1f;
-            SceneManager.LoadScene("Game");
+            AsyncOperation operation = SceneManager.LoadSceneAsync("Game");
+            while (!operation.isDone)
+            {
+                float sceneProgress = Mathf.Clamp01(operation.progress / 0.9f);
+                LoadingScreen.Report(0.03f + sceneProgress * 0.17f, "Oyun sahnesi yukleniyor...");
+                yield return null;
+            }
         }
-        else SoftRestart();
+        else
+        {
+            LoadingScreen.Report(0.18f, "Oyun dunyasi hazirlaniyor...");
+            yield return null;
+            SoftRestart();
+        }
     }
 
     public static void GoToMenu()
@@ -160,7 +179,7 @@ public class GameBootstrap : MonoBehaviour
 
     static readonly Rect SeaRect = new Rect(26f, -60f, 114f, 150f);
 
-    void Start()
+    System.Collections.IEnumerator Start()
     {
         instance = this;
         Game.world = transform;
@@ -171,7 +190,7 @@ public class GameBootstrap : MonoBehaviour
         if (!gamePhase)
         {
             BuildMenuScene();
-            return;
+            yield break;
         }
         GameManager.SkipMenuOnce = false;
         Time.timeScale = 1f;
@@ -179,6 +198,8 @@ public class GameBootstrap : MonoBehaviour
         gameObject.AddComponent<GameManager>();
         gameObject.AddComponent<DevCheats>();
         GameManager gm = Game.gm;
+        LoadingScreen.Report(0.23f, "Kayit ve sirket bilgileri okunuyor...");
+        yield return null;
 
         // brand-new save: shop starts CLOSED at 05:00 with a messy floor
         if (gm.freshStart)
@@ -188,25 +209,38 @@ public class GameBootstrap : MonoBehaviour
         }
 
         BuildGround();
+        LoadingScreen.Report(0.26f, "Zemin hazirlaniyor...");
+        yield return null;
         BuildShop();
+        LoadingScreen.Report(0.30f, "Dukkan kuruluyor...");
+        yield return null;
         BuildGateAndArch();
         BuildDockAndRamp();
+        LoadingScreen.Report(0.34f, "Giris ve iskele kuruluyor...");
+        yield return null;
         BuildDisplayAquarium();
         SeaDecor();
         BuildFoodProps();
+        LoadingScreen.Report(0.38f, "Dukkan ve sahil kuruluyor...");
+        yield return null;
 
         CameraRig rig = CameraRig.Create();
         BuildSun();
         Sfx.Init(gameObject, false);
         UIManager.Create();
         PCScreen.Create();
+        LoadingScreen.Report(0.49f, "Kamera ve arayuz hazirlaniyor...");
+        yield return null;
 
         Sea.Create(SeaRect, transform);
         CashRegister.Create(new Vector3(1f, 0f, 20f), transform);
+        ManagerDesk.Create(new Vector3(0f, 0f, 7f), transform);
         TrashSystem.Create(new Vector3(11.5f, 0f, 18.5f), transform);
         gameObject.AddComponent<CustomerManager>();
         EventManager.Create(transform);
         BeachManager.Create(transform);
+        LoadingScreen.Report(0.57f, "Deniz canlilari ve olaylar hazirlaniyor...");
+        yield return null;
 
         // toilets sit in the far BOTTOM-LEFT corner; the AREA is bought on the spot
         Vector3 toiletPos = new Vector3(-49f, 0f, 2f);
@@ -238,6 +272,8 @@ public class GameBootstrap : MonoBehaviour
         }
 
         BuildStarterBackArea();
+        LoadingScreen.Report(0.64f, "Dukkan bolumleri kontrol ediliyor...");
+        yield return null;
 
         for (int i = 0; i < SpeciesInfo.Count; i++)
         {
@@ -247,6 +283,11 @@ public class GameBootstrap : MonoBehaviour
                 t.AddSaved(gm.LoadTankCount(i));
             }
             else BuyZone.CreatePlot(i, PlotPos(i));
+            if (i % 8 == 7)
+            {
+                LoadingScreen.Report(0.64f + 0.18f * (i + 1f) / SpeciesInfo.Count, "Akvaryumlar yerlestiriliyor... " + (i + 1) + "/" + SpeciesInfo.Count);
+                yield return null;
+            }
         }
         BuildZones();
 
@@ -269,6 +310,8 @@ public class GameBootstrap : MonoBehaviour
         for (int role = 0; role < StaffInfo.RoleCount; role++)
             for (int n = 0; n < gm.staffCounts[role]; n++)
                 Staff.Create(role, Customer.DoorPos + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f)));
+        LoadingScreen.Report(0.87f, "Personel ise geliyor...");
+        yield return null;
 
         for (int i = 0; i < DecorInfo.Count; i++)
             if (gm.decorOwned[i]) ApplyDecor(i);
@@ -276,6 +319,8 @@ public class GameBootstrap : MonoBehaviour
 
         int shown = Mathf.Min(12, gm.unlockedCount);
         for (int i = gm.unlockedCount - shown; i < gm.unlockedCount; i++) AddDisplayFish(i);
+        LoadingScreen.Report(0.93f, "Baliklar akvaryumlara birakiliyor...");
+        yield return null;
 
         // player spawns right next to the first aquarium
         PlayerController.Create(new Vector3(-1.5f, 0.2f, 13f));
@@ -297,6 +342,8 @@ public class GameBootstrap : MonoBehaviour
         for (int i = 0; i < Game.tanks.Count; i++)
             if (Game.tanks[i].Count > 0) gm.MarkDiscovered(Game.tanks[i].species);
         QuestSystem.GenerateDaily();
+        LoadingScreen.Report(0.98f, "Son kontroller yapiliyor...");
+        yield return null;
 
         // tutorial: starting mess + welcome message
         if (gm.freshStart)
@@ -310,12 +357,16 @@ public class GameBootstrap : MonoBehaviour
                 "sonra hemen denize kos ve radarla balik yakala!\n" +
                 "Hazir olunca kapidaki tabeladan dukkani ac.");
         }
+        LoadingScreen.Report(1f, "Hazir! Akvaryum kasabana hos geldin.");
+        yield return null;
+        LoadingScreen.Hide();
+        if (Game.ui != null) Game.ui.ScheduleLevel5QuakeTutorial();
     }
 
     public static void ApplyShopName()
     {
         if (gateNameText != null && Game.gm != null && !string.IsNullOrEmpty(Game.gm.shopName))
-            gateNameText.text = Game.gm.shopName.ToUpper();
+            gateNameText.text = Game.gm.shopName.ToUpper() + "\nDUKKAN GIRISI";
     }
 
     // ---------- lightweight menu scene ----------
@@ -469,6 +520,12 @@ public class GameBootstrap : MonoBehaviour
     {
         MatLib.Floor().color = MatLib.FloorStyles[Mathf.Clamp(Game.gm.floorStyle, 0, MatLib.FloorStyles.Length - 1)];
         MatLib.Wall().color = MatLib.WallStyles[Mathf.Clamp(Game.gm.wallStyle, 0, MatLib.WallStyles.Length - 1)];
+    }
+
+    public static void PreviewPaint(int floorStyle, int wallStyle)
+    {
+        MatLib.Floor().color = MatLib.FloorStyles[Mathf.Clamp(floorStyle, 0, MatLib.FloorStyles.Length - 1)];
+        MatLib.Wall().color = MatLib.WallStyles[Mathf.Clamp(wallStyle, 0, MatLib.WallStyles.Length - 1)];
     }
 
     public static void ApplyDecor(int idx)
@@ -677,13 +734,13 @@ public class GameBootstrap : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "ArchL", transform, new Vector3(8f, 1.6f, 8f), Vector3.zero, new Vector3(0.9f, 3.2f, 0.9f), blueD);
         B.Prim(PrimitiveType.Cube, "ArchR", transform, new Vector3(8f, 1.6f, 16f), Vector3.zero, new Vector3(0.9f, 3.2f, 0.9f), blueD);
         B.Prim(PrimitiveType.Cube, "ArchTop", transform, new Vector3(8f, 3.4f, 12f), Vector3.zero, new Vector3(0.9f, 0.8f, 9.5f), blueD);
-        B.Text3D("DENIZE", transform, new Vector3(8f, 4.3f, 12f), 0.1f, Color.white);
+        B.Text3D("DENIZ YOLU", transform, new Vector3(8f, 4.3f, 12f), 0.1f, Color.white);
 
         Material gate = MatLib.Get(new Color(0.9f, 0.75f, 0.3f));
         B.Prim(PrimitiveType.Cube, "GateL", transform, new Vector3(8f, 1.8f, 22f), Vector3.zero, new Vector3(1f, 3.6f, 1f), gate);
         B.Prim(PrimitiveType.Cube, "GateR", transform, new Vector3(8f, 1.8f, 30f), Vector3.zero, new Vector3(1f, 3.6f, 1f), gate);
         B.Prim(PrimitiveType.Cube, "GateTop", transform, new Vector3(8f, 3.9f, 26f), Vector3.zero, new Vector3(1f, 1f, 9.5f), gate);
-        gateNameText = B.Text3D("GIRIS", transform, new Vector3(8f, 5f, 26f), 0.13f, new Color(1f, 0.95f, 0.5f));
+        gateNameText = B.Text3D("DUKKAN GIRISI", transform, new Vector3(8f, 5f, 26f), 0.11f, new Color(1f, 0.95f, 0.5f));
         Material fence = MatLib.Get(new Color(0.8f, 0.8f, 0.85f));
         B.Prim(PrimitiveType.Cube, "PathFence1", transform, new Vector3(13f, 0.5f, 22.5f), Vector3.zero, new Vector3(9f, 1f, 0.25f), fence);
         B.Prim(PrimitiveType.Cube, "PathFence2", transform, new Vector3(13f, 0.5f, 29.5f), Vector3.zero, new Vector3(9f, 1f, 0.25f), fence);
@@ -817,6 +874,135 @@ public class MenuCamDrift : MonoBehaviour
     {
         transform.RotateAround(Vector3.zero, Vector3.up, 2f * Time.deltaTime);
         transform.LookAt(new Vector3(0f, -1f, 0f));
+    }
+}
+
+// Persistent aquarium-themed loading overlay. Progress is driven by real scene
+// loading and world-construction milestones rather than a fake timer.
+public class LoadingScreen : MonoBehaviour
+{
+    static LoadingScreen current;
+    Text percentText, statusText, activityText;
+    RectTransform fill, shine;
+    Transform fish;
+    readonly List<RectTransform> bubbles = new List<RectTransform>();
+    float progress;
+    float startedAt;
+
+    public static void BeginGameLoad()
+    {
+        if (current != null) return;
+        GameObject go = new GameObject("AquariumLoadingScreen");
+        DontDestroyOnLoad(go);
+        current = go.AddComponent<LoadingScreen>();
+        current.Build();
+        current.StartCoroutine(GameBootstrap.LoadGameRoutine());
+    }
+
+    void Build()
+    {
+        startedAt = Time.unscaledTime;
+        Canvas canvas = gameObject.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 1000;
+        CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1600f, 900f);
+        scaler.matchWidthOrHeight = 0.5f;
+        gameObject.AddComponent<GraphicRaycaster>();
+
+        UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+            new Vector2(4000f, 4000f), new Color(0.08f, 0.52f, 0.78f), false, false);
+        GameObject glow = UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
+            new Vector2(760f, 760f), new Color(0.22f, 0.8f, 0.95f, 0.28f));
+
+        GameObject titleArea = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -90f),
+            new Vector2(900f, 90f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(titleArea.transform, "AQUARIUM TOWN", 46, Color.white, TextAnchor.MiddleCenter, true);
+
+        GameObject fishGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
+            new Vector2(260f, 150f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        fish = fishGo.transform;
+        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(18f, 0f), new Vector2(150f, 88f), UIKit.Orange);
+        UIKit.Icon(fish, UIKit.Star(), new Vector2(0.5f, 0.5f), new Vector2(-78f, 0f), new Vector2(72f, 72f), new Color(1f, 0.48f, 0.15f));
+        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(60f, 13f), new Vector2(17f, 17f), Color.white);
+        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(62f, 13f), new Vector2(7f, 7f), UIKit.BlueDark);
+
+        for (int i = 0; i < 9; i++)
+        {
+            GameObject bubble = UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.5f, 0.5f),
+                new Vector2(-430f + i * 105f, -80f + (i % 3) * 55f), new Vector2(18f + (i % 3) * 8f, 18f + (i % 3) * 8f),
+                new Color(0.78f, 0.96f, 1f, 0.55f));
+            bubbles.Add(bubble.GetComponent<RectTransform>());
+        }
+
+        GameObject statusArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -105f),
+            new Vector2(900f, 55f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        statusText = UIKit.Label(statusArea.transform, "Hazirlaniyor...", 23, Color.white, TextAnchor.MiddleCenter, true);
+        GameObject track = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -175f),
+            new Vector2(780f, 42f), new Color(0.08f, 0.28f, 0.48f, 0.9f), true, true);
+        GameObject fillGo = UIKit.Panel(track.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(8f, 0f),
+            new Vector2(1f, 28f), UIKit.Green, true, false);
+        fill = fillGo.GetComponent<RectTransform>();
+        GameObject shineGo = UIKit.Panel(track.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(8f, 0f),
+            new Vector2(70f, 24f), new Color(0.85f, 1f, 0.72f, 0.8f), true, false);
+        shine = shineGo.GetComponent<RectTransform>();
+        GameObject percentArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -230f),
+            new Vector2(300f, 58f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        percentText = UIKit.Label(percentArea.transform, "%0", 30, Color.white, TextAnchor.MiddleCenter, true);
+        GameObject activityArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -280f),
+            new Vector2(760f, 45f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        activityText = UIKit.Label(activityArea.transform, "", 18, new Color(0.82f, 0.96f, 1f), TextAnchor.MiddleCenter);
+        Report(0f, "Hazirlaniyor...");
+    }
+
+    public static void Report(float value, string status)
+    {
+        if (current == null) return;
+        current.progress = Mathf.Clamp01(value);
+        if (current.fill != null) current.fill.sizeDelta = new Vector2(764f * current.progress, 28f);
+        if (current.percentText != null) current.percentText.text = "%" + Mathf.RoundToInt(current.progress * 100f);
+        if (current.statusText != null) current.statusText.text = status;
+    }
+
+    public static void Hide()
+    {
+        if (current == null) return;
+        Destroy(current.gameObject);
+        current = null;
+    }
+
+    void Update()
+    {
+        float t = Time.unscaledTime;
+        if (activityText != null)
+        {
+            string[] spinner = { "●○○", "○●○", "○○●", "○●○" };
+            int frame = Mathf.FloorToInt(t * 5f) % spinner.Length;
+            activityText.text = spinner[frame] + "  YUKLENIYOR  •  " + (t - startedAt).ToString("0.0") + " sn  •  OYUN CALISIYOR";
+        }
+        if (shine != null)
+        {
+            float x = 10f + Mathf.Repeat(t * 260f, 690f);
+            shine.anchoredPosition = new Vector2(x, 0f);
+        }
+        if (fish != null)
+        {
+            Vector2 p = fish.GetComponent<RectTransform>().anchoredPosition;
+            p.y = 80f + Mathf.Sin(t * 2.2f) * 12f;
+            p.x = Mathf.Sin(t * 0.8f) * 25f;
+            fish.GetComponent<RectTransform>().anchoredPosition = p;
+        }
+        for (int i = 0; i < bubbles.Count; i++)
+        {
+            RectTransform b = bubbles[i];
+            if (b == null) continue;
+            Vector2 p = b.anchoredPosition;
+            p.y += Time.unscaledDeltaTime * (22f + i * 3f);
+            p.x += Mathf.Sin(t * 1.7f + i) * Time.unscaledDeltaTime * 8f;
+            if (p.y > 250f) p.y = -160f;
+            b.anchoredPosition = p;
+        }
     }
 }
 

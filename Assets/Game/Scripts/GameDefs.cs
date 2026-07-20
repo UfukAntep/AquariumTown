@@ -8,6 +8,7 @@ public static class Game
     public static GameManager gm;
     public static PlayerController player;
     public static CashRegister register;
+    public static ManagerDesk managerDesk;
     public static UIManager ui;
     public static PCScreen pc;
     public static Sea sea;
@@ -24,7 +25,7 @@ public static class Game
 
     public static void Clear()
     {
-        gm = null; player = null; register = null; ui = null; pc = null; sea = null;
+        gm = null; player = null; register = null; managerDesk = null; ui = null; pc = null; sea = null;
         depot = null; trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; world = null;
         tanks = new List<Tank>();
         staff = new List<Staff>();
@@ -188,6 +189,67 @@ public enum Upg
 {
     Capacity = 0, MoveSpeed = 1, SwimSpeed = 2, RadarSpeed = 3, RadarRange = 4,
     TipChance = 5, CustSpeed = 6, ExtraCash = 7
+}
+
+public enum ControlAction
+{
+    Forward, Backward, Left, Right, Punch, Interact, Camera, Map
+}
+
+// Player-configurable primary controls. Arrow keys remain permanent secondary
+// movement bindings so keyboard movement is always recoverable.
+public static class ControlBindings
+{
+    const string P = "AT3_Control_";
+    static readonly KeyCode[] defaults = {
+        KeyCode.W, KeyCode.S, KeyCode.A, KeyCode.D, KeyCode.Space,
+        KeyCode.E, KeyCode.C, KeyCode.M
+    };
+    public static readonly string[] Names = {
+        "ILERI", "GERI", "SOLA", "SAGA", "YUMRUK", "ETKILESIM", "KAMERA", "HARITA"
+    };
+
+    public static KeyCode Key(ControlAction action)
+    {
+        int i = (int)action;
+        return (KeyCode)PlayerPrefs.GetInt(P + i, (int)defaults[i]);
+    }
+
+    public static void Set(ControlAction action, KeyCode key)
+    {
+        KeyCode previous = Key(action);
+        for (int i = 0; i < defaults.Length; i++)
+            if (i != (int)action && Key((ControlAction)i) == key)
+                PlayerPrefs.SetInt(P + i, (int)previous);
+        PlayerPrefs.SetInt(P + (int)action, (int)key);
+        PlayerPrefs.Save();
+    }
+
+    public static bool Down(ControlAction action) { return Input.GetKeyDown(Key(action)); }
+    public static bool Held(ControlAction action) { return Input.GetKey(Key(action)); }
+    public static int MoveMouseButton { get { return PlayerPrefs.GetInt(P + "MouseMove", 0); } }
+    public static int PunchMouseButton { get { return MoveMouseButton == 0 ? 1 : 0; } }
+    public static void SwapMouseButtons()
+    {
+        PlayerPrefs.SetInt(P + "MouseMove", MoveMouseButton == 0 ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+    public static string KeyName(ControlAction action) { return Key(action).ToString(); }
+    public static string MouseName(int button) { return button == 0 ? "SOL TIK" : "SAG TIK"; }
+    public static int[] Snapshot()
+    {
+        int[] values = new int[defaults.Length + 1];
+        for (int i = 0; i < defaults.Length; i++) values[i] = (int)Key((ControlAction)i);
+        values[defaults.Length] = MoveMouseButton;
+        return values;
+    }
+    public static void Restore(int[] values)
+    {
+        if (values == null || values.Length < defaults.Length + 1) return;
+        for (int i = 0; i < defaults.Length; i++) PlayerPrefs.SetInt(P + i, values[i]);
+        PlayerPrefs.SetInt(P + "MouseMove", values[defaults.Length]);
+        PlayerPrefs.Save();
+    }
 }
 
 public static class UpgInfo

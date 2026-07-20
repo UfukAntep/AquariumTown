@@ -35,6 +35,7 @@ public class PlayerController : MonoBehaviour
     bool dragging;
 
     public int CarryCount { get { return carried.Count; } }
+    public int HeldTrashCount { get { return heldTrash.Count; } }
     public bool IsFull { get { return carried.Count >= Game.gm.Capacity; } }
 
     public static PlayerController Create(Vector3 pos)
@@ -111,15 +112,18 @@ public class PlayerController : MonoBehaviour
     {
         if (Game.ui != null && Game.ui.AnyMenuOpen) return Vector2.zero;
         Vector2 mv = Vector2.zero;
-        mv.x = Input.GetAxisRaw("Horizontal");
-        mv.y = Input.GetAxisRaw("Vertical");
+        if (ControlBindings.Held(ControlAction.Left) || Input.GetKey(KeyCode.LeftArrow)) mv.x -= 1f;
+        if (ControlBindings.Held(ControlAction.Right) || Input.GetKey(KeyCode.RightArrow)) mv.x += 1f;
+        if (ControlBindings.Held(ControlAction.Forward) || Input.GetKey(KeyCode.UpArrow)) mv.y += 1f;
+        if (ControlBindings.Held(ControlAction.Backward) || Input.GetKey(KeyCode.DownArrow)) mv.y -= 1f;
 
         // drag joystick only in top-down mode
         if (Game.cam == null || !Game.cam.IsTPS)
         {
-            if (Input.GetMouseButtonDown(0)) { dragging = true; dragOrigin = Input.mousePosition; }
-            if (Input.GetMouseButtonUp(0)) dragging = false;
-            if (dragging && Input.GetMouseButton(0))
+            int moveButton = ControlBindings.MoveMouseButton;
+            if (Input.GetMouseButtonDown(moveButton)) { dragging = true; dragOrigin = Input.mousePosition; }
+            if (Input.GetMouseButtonUp(moveButton)) dragging = false;
+            if (dragging && Input.GetMouseButton(moveButton))
             {
                 Vector2 delta = (Vector2)Input.mousePosition - dragOrigin;
                 float max = Screen.height * 0.12f;
@@ -220,7 +224,8 @@ public class PlayerController : MonoBehaviour
 
     void UpdateAttack()
     {
-        if (attackCooldown > 0f || !Input.GetMouseButtonDown(0) ||
+        bool punchPressed = Input.GetMouseButtonDown(ControlBindings.PunchMouseButton) || ControlBindings.Down(ControlAction.Punch);
+        if (attackCooldown > 0f || !punchPressed ||
             (Game.ui != null && Game.ui.AnyMenuOpen)) return;
         attackCooldown = 0.48f;
         StartCoroutine(PunchVisual());
@@ -275,25 +280,35 @@ public class PlayerController : MonoBehaviour
         bool menuOpen = Game.ui.AnyMenuOpen;
         if (!menuOpen)
         {
+            string interactKey = ControlBindings.KeyName(ControlAction.Interact);
             if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
-                prompt = "E : Jetski tamir et  $" + B.Money(Game.jetski.RepairCost);
+                prompt = interactKey + " : Jetski tamir et  $" + B.Money(Game.jetski.RepairCost);
+            else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
+                prompt = interactKey + " : Yonetim PC'sini Ac";
             else if (Game.register != null && Game.register.PlayerAtSpot)
-                prompt = "E : PC'yi Ac";
+                prompt = interactKey + " : Odeme noktasinda bekle";
             else if (GameBootstrap.NearGateSign(transform.position))
-                prompt = Game.gm.shopOpen ? "E : Dukkani KAPAT" : "E : Dukkani AC";
+                prompt = Game.gm.shopOpen ? interactKey + " : Dukkani KAPAT" : interactKey + " : Dukkani AC";
         }
         Game.ui.SetPrompt(prompt);
 
-        if (prompt != null && Input.GetKeyDown(KeyCode.E))
+        if (prompt != null && ControlBindings.Down(ControlAction.Interact))
         {
             if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
             {
                 Game.jetski.TryRepair();
             }
-            else if (Game.register != null && Game.register.PlayerAtSpot)
+            else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
             {
                 Game.ui.SetPrompt(null);
                 Game.cam.ZoomToPC(delegate { Game.pc.Open(); });
+            }
+            else if (Game.register != null && Game.register.PlayerAtSpot)
+            {
+                if (Game.register.QueueCount == 0)
+                    Game.ui.Toast("Bekleyen musteri yok.", 3f);
+                else
+                    Game.ui.Toast("Odeme aliniyor; kasada bekle.", 3f);
             }
             else
             {
@@ -534,7 +549,6 @@ public class PlayerController : MonoBehaviour
             TrashBinGuideArrow guide = trashGuideArrow.AddComponent<TrashBinGuideArrow>();
             guide.player = transform;
         }
-        if (Game.ui != null) Game.ui.ShowCameraTutorial();
     }
 
     void UpdateTrashGuide()
@@ -547,9 +561,13 @@ public class PlayerController : MonoBehaviour
     void CompleteTrashGuide()
     {
         if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1) return;
+        // The camera lesson belongs after the whole starter cleanup, not after
+        // merely touching the first poop (the player can spawn close to one).
+        if (Game.trash != null && Game.trash.Count > 0) return;
         PlayerPrefs.SetInt("AT3_BinTutorialDone", 1);
         PlayerPrefs.Save();
         if (trashGuideArrow != null) Destroy(trashGuideArrow);
+        if (Game.ui != null) Game.ui.ShowCameraTutorial();
     }
 }
 

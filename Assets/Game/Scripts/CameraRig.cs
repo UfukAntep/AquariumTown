@@ -16,6 +16,7 @@ public class CameraRig : MonoBehaviour
     float pcT;
     bool zoomingIn, zoomingOut;
     System.Action onZoomDone;
+    Mode returnMode = Mode.TopDown;
 
     public static CameraRig Create()
     {
@@ -60,6 +61,7 @@ public class CameraRig : MonoBehaviour
     public void ZoomToPC(System.Action done)
     {
         if (mode == Mode.PC) return;
+        returnMode = mode;
         mode = Mode.PC;
         pcFrom = transform.position;
         pcFromRot = transform.rotation;
@@ -81,7 +83,7 @@ public class CameraRig : MonoBehaviour
 
     void Update()
     {
-        if (mode != Mode.PC && Input.GetKeyDown(KeyCode.C) &&
+        if (mode != Mode.PC && ControlBindings.Down(ControlAction.Camera) &&
             (Game.ui == null || !Game.ui.AnyMenuOpen))
         {
             if (Game.ui != null) Game.ui.HideCameraTutorial();
@@ -117,9 +119,9 @@ public class CameraRig : MonoBehaviour
             shake = Random.insideUnitSphere * shakeAmp * (shakeTime > 0f ? 1f : 0f);
         }
 
-        if (mode == Mode.PC && Game.register != null && Game.register.monitor != null)
+        if (mode == Mode.PC && Game.managerDesk != null && Game.managerDesk.monitor != null)
         {
-            Transform mon = Game.register.monitor;
+            Transform mon = Game.managerDesk.monitor;
             Vector3 pcPos = mon.position + mon.forward * -1.6f + Vector3.up * 0.1f;
             Quaternion pcRot = Quaternion.LookRotation(mon.position - pcPos);
             pcT += dt * 1.6f;
@@ -143,7 +145,10 @@ public class CameraRig : MonoBehaviour
                 if (pcT >= 1f)
                 {
                     zoomingOut = false;
-                    mode = Mode.TopDown;
+                    mode = returnMode;
+                    bool tps = mode == Mode.TPS;
+                    Cursor.lockState = tps ? CursorLockMode.Locked : CursorLockMode.None;
+                    Cursor.visible = !tps;
                 }
             }
             return;

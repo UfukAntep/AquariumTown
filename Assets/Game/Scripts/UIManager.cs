@@ -5,11 +5,11 @@ using UnityEngine.UI;
 // Cartoon-styled HUD + menus (uses UIKit for rounded panels, stars, pills).
 public class UIManager : MonoBehaviour
 {
-    Text moneyText, levelText, satText, clockText, dirtText, capacityText, toastText, hintText, promptText, thiefText;
+    Text moneyText, levelText, satText, clockText, dirtText, capacityText, toastText, hintText, promptText, thiefText, cameraTutorialText, trashTutorialText;
     RectTransform moneyRect, satRect;
     GameObject satRoot, promptRoot;
     Image satIcon;
-    GameObject toastGo, cameraTutorialGo, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo;
+    GameObject toastGo, cameraTutorialGo, trashTutorialGo, trashTutorialDot, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo, controlsGo, keyboardControlsPage, mouseControlsPage;
     Text celebTitle, celebSub, infoTitle, infoBody;
     GameObject infoTrophyVisual;
     RectTransform infoBodyRect;
@@ -30,6 +30,9 @@ public class UIManager : MonoBehaviour
     Transform mapDynamic;
     Text[] questTexts = new Text[3];
     float questTimer;
+    Button[] bindingButtons = new Button[8];
+    Text controlsHint, mouseMoveText, mousePunchText;
+    int pendingBinding = -1;
 
     public bool MainMenuOpen { get { return mainMenuGo != null && mainMenuGo.activeSelf; } }
     public bool PauseOpen { get { return pauseGo != null && pauseGo.activeSelf; } }
@@ -37,7 +40,8 @@ public class UIManager : MonoBehaviour
     public bool InfoOpen { get { return infoGo != null && infoGo.activeSelf; } }
     public bool MapOpen { get { return mapGo != null && mapGo.activeSelf; } }
     public bool LangOpen { get { return langGo != null && langGo.activeSelf; } }
-    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || (Game.pc != null && Game.pc.IsOpen); } }
+    public bool ControlsOpen { get { return controlsGo != null && controlsGo.activeSelf; } }
+    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || ControlsOpen || (Game.pc != null && Game.pc.IsOpen); } }
 
     public static UIManager Create()
     {
@@ -127,8 +131,19 @@ public class UIManager : MonoBehaviour
         // and disappears only after the player actually presses C.
         cameraTutorialGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -232f), new Vector2(850f, 64f), UIKit.Blue, true, true);
-        UIKit.Label(cameraTutorialGo.transform, Loc.T("CAMERA_TUTORIAL"), 20, Color.white, TextAnchor.MiddleCenter, true);
+        cameraTutorialText = UIKit.Label(cameraTutorialGo.transform, CameraTutorialLabel(), 20, Color.white, TextAnchor.MiddleCenter, true);
         cameraTutorialGo.SetActive(false);
+
+        // First-cleanup beacon: a small pulsing corner marker stays visible
+        // until every starter poop is collected and dumped for the first time.
+        trashTutorialGo = UIKit.Panel(transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(22f, -252f), new Vector2(285f, 62f), new Color(0.13f, 0.2f, 0.3f, 0.92f), true, true);
+        trashTutorialDot = UIKit.Icon(trashTutorialGo.transform, UIKit.Circle(), new Vector2(0f, 0.5f),
+            new Vector2(34f, 0f), new Vector2(27f, 27f), UIKit.Yellow);
+        GameObject trashTextArea = UIKit.Panel(trashTutorialGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(58f, 0f), new Vector2(210f, 52f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        trashTutorialText = UIKit.Label(trashTextArea.transform, "COPLERI TOPLA  0/5", 17, Color.white, TextAnchor.MiddleLeft, true);
+        trashTutorialGo.SetActive(false);
 
         // ----- thief timer -----
         thiefGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -160f), new Vector2(440f, 64f), UIKit.Red, true, true);
@@ -138,6 +153,7 @@ public class UIManager : MonoBehaviour
         BuildCelebration();
         BuildMainMenu();
         BuildPause();
+        BuildControls();
         BuildInfo();
         BuildLanguagePicker();
         BuildCompass();
@@ -461,6 +477,7 @@ public class UIManager : MonoBehaviour
         if (infoGo) infoGo.SetActive(false);
         if (mapGo) mapGo.SetActive(false);
         if (pauseGo) pauseGo.SetActive(false);
+        if (controlsGo) controlsGo.SetActive(false);
         if (langGo) langGo.SetActive(false);
         if (tipGo) tipGo.SetActive(false);
         if (thiefGo) thiefGo.SetActive(false);
@@ -562,6 +579,22 @@ public class UIManager : MonoBehaviour
         if (celebModel != null) Destroy(celebModel);
         if (celebCam != null) celebCam.enabled = false;
         UpdateCursor(false);
+        ScheduleLevel5QuakeTutorial();
+    }
+
+    public void ScheduleLevel5QuakeTutorial()
+    {
+        if (Game.gm == null || !Game.gm.ClaimLevel5QuakeTutorial()) return;
+        StartCoroutine(Level5QuakeTutorialRoutine());
+    }
+
+    System.Collections.IEnumerator Level5QuakeTutorialRoutine()
+    {
+        yield return new WaitForSeconds(2.5f);
+        Toast("Bir seyler ters gidiyor... YER SARSILIYOR!", 3f);
+        Sfx.Play(Snd.Quake, 0.55f);
+        yield return new WaitForSeconds(1.2f);
+        if (Game.events != null) Game.events.TriggerQuake();
     }
 
     // ---------- main menu ----------
@@ -607,13 +640,13 @@ public class UIManager : MonoBehaviour
     void BuildPause()
     {
         pauseGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000f, 4000f), new Color(0f, 0f, 0f, 0.6f), false, false);
-        GameObject box = UIKit.Panel(pauseGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 540f), UIKit.Cream, true, true);
+        GameObject box = UIKit.Panel(pauseGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 620f), UIKit.Cream, true, true);
         GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(510f, 76f), UIKit.Blue, true, true);
         UIKit.Label(band.transform, Loc.T("PAUSED"), 30, Color.white, TextAnchor.MiddleCenter, true);
-        UIKit.Btn(box.transform, new Vector2(0f, 98f), new Vector2(380f, 58f), UIKit.Green, Loc.T("RESUME"), 22, delegate { TogglePause(); });
-        UIKit.Btn(box.transform, new Vector2(0f, 34f), new Vector2(380f, 58f), UIKit.Purple, Loc.T("LANGUAGE"), 22, delegate { ShowLanguagePicker(); });
+        UIKit.Btn(box.transform, new Vector2(0f, 150f), new Vector2(380f, 58f), UIKit.Green, Loc.T("RESUME"), 22, delegate { TogglePause(); });
+        UIKit.Btn(box.transform, new Vector2(0f, 86f), new Vector2(380f, 58f), UIKit.Purple, Loc.T("LANGUAGE"), 22, delegate { ShowLanguagePicker(); });
         Button sndBtn = null;
-        sndBtn = UIKit.Btn(box.transform, new Vector2(0f, -30f), new Vector2(380f, 58f), UIKit.Blue, Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON"), 22,
+        sndBtn = UIKit.Btn(box.transform, new Vector2(0f, 22f), new Vector2(380f, 58f), UIKit.Blue, Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON"), 22,
             delegate
             {
                 Sfx.Muted = !Sfx.Muted;
@@ -621,20 +654,132 @@ public class UIManager : MonoBehaviour
                 sndBtn.GetComponentInChildren<Text>().text = Sfx.Muted ? Loc.T("SOUND_OFF") : Loc.T("SOUND_ON");
             });
         Button camBtn = null;
-        camBtn = UIKit.Btn(box.transform, new Vector2(0f, -94f), new Vector2(380f, 58f), UIKit.Blue, CameraModeLabel(), 20,
+        camBtn = UIKit.Btn(box.transform, new Vector2(0f, -42f), new Vector2(380f, 58f), UIKit.Blue, CameraModeLabel(), 20,
             delegate
             {
                 if (Game.cam != null) Game.cam.TogglePlayerMode();
                 camBtn.GetComponentInChildren<Text>().text = CameraModeLabel();
                 UpdateCursor(true);
             });
-        UIKit.Btn(box.transform, new Vector2(0f, -158f), new Vector2(380f, 58f), UIKit.Orange, Loc.T("SAVE_MENU"), 20,
+        UIKit.Btn(box.transform, new Vector2(0f, -106f), new Vector2(380f, 58f), UIKit.Purple, "KONTROLLER", 20, OpenControls);
+        UIKit.Btn(box.transform, new Vector2(0f, -170f), new Vector2(380f, 58f), UIKit.Orange, Loc.T("SAVE_MENU"), 20,
             delegate
             {
                 Game.gm.Save();
                 GameBootstrap.GoToMenu();
             });
         pauseGo.SetActive(false);
+    }
+
+    void BuildControls()
+    {
+        controlsGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000f, 4000f), new Color(0f, 0f, 0f, 0.72f), false, false);
+        GameObject box = UIKit.Panel(controlsGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(980f, 680f), UIKit.Cream, true, true);
+        GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(1010f, 76f), UIKit.Purple, true, true);
+        UIKit.Label(band.transform, "KONTROLLER", 30, Color.white, TextAnchor.MiddleCenter, true);
+        Button keyboardTab = UIKit.Btn(box.transform, new Vector2(-215f, 252f), new Vector2(400f, 52f), UIKit.Blue, "KLAVYE", 19, delegate { ShowControlTab(true); });
+        Button mouseTab = UIKit.Btn(box.transform, new Vector2(215f, 252f), new Vector2(400f, 52f), UIKit.Orange, "FARE", 19, delegate { ShowControlTab(false); });
+
+        keyboardControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.5f), true, false);
+        GameObject keyInfo = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(850f, 62f), new Color(0.88f, 0.95f, 1f), true, false);
+        UIKit.Label(keyInfo.transform, "Hareket: WASD veya ok yonleri. Bir atamayi degistirmek icin tusuna bas, sonra yeni klavye tusuna bas.", 16, UIKit.TextDark, TextAnchor.MiddleCenter);
+        for (int i = 0; i < bindingButtons.Length; i++)
+        {
+            int action = i;
+            float x = i % 2 == 0 ? -220f : 220f;
+            float y = 135f - (i / 2) * 82f;
+            GameObject row = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(410f, 68f), Color.white, true, true);
+            GameObject labelArea = UIKit.Panel(row.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(15f, 0f), new Vector2(180f, 56f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            string suffix = i < 4 ? (i == 0 ? " + ↑" : i == 1 ? " + ↓" : i == 2 ? " + ←" : " + →") : "";
+            UIKit.Label(labelArea.transform, ControlBindings.Names[i] + suffix, 16, UIKit.TextDark, TextAnchor.MiddleLeft, true);
+            bindingButtons[i] = UIKit.Btn(row.transform, new Vector2(112f, 0f), new Vector2(160f, 48f), UIKit.Blue, "", 16, delegate { BeginBinding(action); });
+        }
+        GameObject hintArea = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(840f, 42f), new Color(1f, 0.94f, 0.75f), true, false);
+        controlsHint = UIKit.Label(hintArea.transform, "Space ve fare yumrugu birlikte kullanilabilir.", 16, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+
+        mouseControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.5f), true, false);
+        GameObject mouseInfo = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(840f, 74f), new Color(1f, 0.94f, 0.8f), true, false);
+        UIKit.Label(mouseInfo.transform, "Sol ve sag tik atamalarini istedigin zaman yer degistirebilirsin.", 18, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        GameObject moveRow = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 85f), new Vector2(780f, 90f), Color.white, true, true);
+        mouseMoveText = UIKit.Label(moveRow.transform, "", 20, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        GameObject punchRow = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(780f, 90f), Color.white, true, true);
+        mousePunchText = UIKit.Label(punchRow.transform, "", 20, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        UIKit.Btn(mouseControlsPage.transform, new Vector2(0f, -150f), new Vector2(420f, 60f), UIKit.Orange, "SOL / SAG TIK YER DEGISTIR", 18,
+            delegate { ControlBindings.SwapMouseButtons(); RefreshControlLabels(); });
+
+        UIKit.Btn(box.transform, new Vector2(0f, -300f), new Vector2(260f, 54f), UIKit.Red, "GERI", 19, CloseControls);
+        controlsGo.SetActive(false);
+        ShowControlTab(true);
+        RefreshControlLabels();
+    }
+
+    void OpenControls()
+    {
+        pendingBinding = -1;
+        controlsGo.SetActive(true);
+        controlsGo.transform.SetAsLastSibling();
+        RefreshControlLabels();
+        UpdateCursor(true);
+    }
+
+    void CloseControls()
+    {
+        pendingBinding = -1;
+        controlsGo.SetActive(false);
+        UpdateCursor(true);
+    }
+
+    void ShowControlTab(bool keyboard)
+    {
+        if (keyboardControlsPage != null) keyboardControlsPage.SetActive(keyboard);
+        if (mouseControlsPage != null) mouseControlsPage.SetActive(!keyboard);
+        pendingBinding = -1;
+        RefreshControlLabels();
+    }
+
+    void BeginBinding(int action)
+    {
+        pendingBinding = action;
+        controlsHint.text = ControlBindings.Names[action] + " icin yeni bir tusa bas. Esc ile iptal.";
+        for (int i = 0; i < bindingButtons.Length; i++) bindingButtons[i].image.color = i == action ? UIKit.Orange : UIKit.Blue;
+    }
+
+    void RefreshControlLabels()
+    {
+        for (int i = 0; i < bindingButtons.Length; i++)
+        {
+            if (bindingButtons[i] == null) continue;
+            bindingButtons[i].GetComponentInChildren<Text>().text = ControlBindings.KeyName((ControlAction)i);
+            bindingButtons[i].image.color = i == pendingBinding ? UIKit.Orange : UIKit.Blue;
+        }
+        if (controlsHint != null && pendingBinding < 0)
+            controlsHint.text = "Space ve fare yumrugu birlikte kullanilabilir. Ok yonleri her zaman aktiftir.";
+        if (mouseMoveText != null) mouseMoveText.text = ControlBindings.MouseName(ControlBindings.MoveMouseButton) + " BASILI TUT: Tepeden gorunumde git / yonlendir";
+        if (mousePunchText != null) mousePunchText.text = ControlBindings.MouseName(ControlBindings.PunchMouseButton) + ": Yumruk at";
+        if (cameraTutorialText != null) cameraTutorialText.text = CameraTutorialLabel();
+    }
+
+    string CameraTutorialLabel()
+    {
+        string key = ControlBindings.KeyName(ControlAction.Camera);
+        if (Loc.Lang == 1) return "Kamera acisini degistirmek icin " + key + " tusuna bas. Uzaklasmak veya yakinlasmak icin fare tekerlegini kullan.";
+        return "Press " + key + " to change camera view. Use the mouse wheel to zoom in or out.";
+    }
+
+    void CaptureBinding()
+    {
+        if (pendingBinding < 0 || !Input.anyKeyDown) return;
+        if (Input.GetKeyDown(KeyCode.Escape)) { pendingBinding = -1; RefreshControlLabels(); return; }
+        foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
+        {
+            if (key >= KeyCode.Mouse0 && key <= KeyCode.Mouse6) continue;
+            if (!Input.GetKeyDown(key)) continue;
+            ControlBindings.Set((ControlAction)pendingBinding, key);
+            pendingBinding = -1;
+            Sfx.Play(Snd.Tick, 0.5f);
+            RefreshControlLabels();
+            return;
+        }
     }
 
     string CameraModeLabel()
@@ -711,6 +856,27 @@ public class UIManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 
+    void UpdateTrashTutorialIndicator()
+    {
+        if (trashTutorialGo == null) return;
+        bool tutorialDone = PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1;
+        int held = Game.player != null ? Game.player.HeldTrashCount : 0;
+        int remaining = Game.trash != null ? Game.trash.Count : 0;
+        bool show = !tutorialDone && Game.player != null && Game.trash != null && (remaining > 0 || held > 0);
+        trashTutorialGo.SetActive(show);
+        if (!show) return;
+
+        bool goToBin = held >= 5 || (remaining == 0 && held > 0);
+        trashTutorialText.text = goToBin ? "COP KUTUSUNA GOTUR  " + held + "/5" : "COPLERI TOPLA  " + held + "/5";
+        if (trashTutorialDot != null)
+        {
+            Image dot = trashTutorialDot.GetComponent<Image>();
+            float pulse = 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f));
+            dot.color = new Color(1f, 0.78f, 0.12f, pulse);
+            trashTutorialDot.transform.localScale = Vector3.one * (0.85f + pulse * 0.25f);
+        }
+    }
+
     public void SetPrompt(string msg)
     {
         promptRoot.SetActive(!string.IsNullOrEmpty(msg));
@@ -730,11 +896,19 @@ public class UIManager : MonoBehaviour
         if (Game.gm == null) return;
         OnMoneyChanged();
 
+        if (ControlsOpen)
+        {
+            bool wasBinding = pendingBinding >= 0;
+            CaptureBinding();
+            if (!wasBinding && Input.GetKeyDown(KeyCode.Escape)) CloseControls();
+            return;
+        }
+
         if (Input.GetKeyDown(KeyCode.Escape) && !MainMenuOpen && !MapOpen && (Game.pc == null || !Game.pc.IsOpen))
             TogglePause();
 
         // M: world map (HARITA tech)
-        if (Input.GetKeyDown(KeyCode.M) && Game.gm.TechActive(1) && !MainMenuOpen && !PauseOpen && (Game.pc == null || !Game.pc.IsOpen))
+        if (ControlBindings.Down(ControlAction.Map) && Game.gm.TechActive(1) && !MainMenuOpen && !PauseOpen && (Game.pc == null || !Game.pc.IsOpen))
         {
             if (MapOpen) { mapGo.SetActive(false); UpdateCursor(false); }
             else OpenMap();
@@ -786,6 +960,7 @@ public class UIManager : MonoBehaviour
             if (celebTimer <= 0f) EndCelebration();
         }
 
+        UpdateTrashTutorialIndicator();
         UpdateHint();
     }
 
@@ -851,7 +1026,8 @@ public class UIManager : MonoBehaviour
         else if (Game.register != null && !Game.register.HasOperator)
             h = "Musteriler bekliyor: kasanin arkasina gec veya kasiyer al!";
         else
-            h = Loc.T("CONTROL_HINT");
+            h = ControlBindings.KeyName(ControlAction.Camera) + ": kamera | " +
+                ControlBindings.KeyName(ControlAction.Interact) + ": etkilesim | Fare tekerlegi: yakinlas / uzaklas";
         hintText.text = h;
     }
 }

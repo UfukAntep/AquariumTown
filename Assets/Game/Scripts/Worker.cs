@@ -20,7 +20,7 @@ public class Staff : MonoBehaviour
     Vector3 moveTarget;
     float timer;
     bool shiftVisible = true;
-    const float Speed = 4.2f;
+    float MoveSpeed { get { return 4.2f * (Game.gm != null ? Game.gm.StaffSpeedMultiplier(role) : 1f); } }
 
     public static Staff Create(int role, Vector3 pos)
     {
@@ -60,7 +60,7 @@ public class Staff : MonoBehaviour
         Vector3 to = t - pos;
         if (to.magnitude < 0.35f) return true;
         Vector3 dir = to.normalized;
-        transform.position += dir * Speed * dt;
+        transform.position += dir * MoveSpeed * dt;
         visual.rotation = Quaternion.Slerp(visual.rotation, Quaternion.LookRotation(dir), 10f * dt);
         return false;
     }
@@ -108,7 +108,7 @@ public class Staff : MonoBehaviour
     }
 
     // ---- beach cleaner: clears shore/beach litter ----
-    void TickBeachCleaner(float dt) { TickCleaner(dt, false, 4); }
+    void TickBeachCleaner(float dt) { TickCleaner(dt, false, Game.gm.StaffCapacity(7)); }
 
     // ---- security guard: chase & beat thieves ----
     Thief chaseThief;
@@ -122,10 +122,23 @@ public class Staff : MonoBehaviour
             chaseThief = Thief.Nearest(transform.position);
             if (chaseThief == null)
             {
-                // patrol near the entrance
-                if (Vector3.Distance(transform.position, patrolTarget) < 1.5f || patrolTarget == Vector3.zero)
-                    patrolTarget = Customer.GateInside + new Vector3(Random.Range(-6f, 4f), 0f, Random.Range(-4f, 4f));
-                MoveTo(patrolTarget, dt);
+                if (IsFirstSecurity())
+                {
+                    // The first guard is visibly stationed at the front door.
+                    Vector3 doorPost = Customer.GateInside + new Vector3(2.5f, 0f, -1.5f);
+                    if (MoveTo(doorPost, dt))
+                    {
+                        Vector3 face = Customer.DoorPos - transform.position; face.y = 0f;
+                        if (face.sqrMagnitude > 0.01f) visual.rotation = Quaternion.Slerp(visual.rotation, Quaternion.LookRotation(face), 6f * dt);
+                    }
+                }
+                else
+                {
+                    // Extra guards patrol the sales floor instead of crowding the gate.
+                    if (Vector3.Distance(transform.position, patrolTarget) < 1.5f || patrolTarget == Vector3.zero)
+                        patrolTarget = new Vector3(Random.Range(-17f, 5f), 0f, Random.Range(-3f, 23f));
+                    MoveTo(patrolTarget, dt);
+                }
                 return;
             }
         }
@@ -139,12 +152,19 @@ public class Staff : MonoBehaviour
             visual.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 25f) * 20f);
             if (punchTimer <= 0f)
             {
-                punchTimer = 0.35f;
+                punchTimer = Mathf.Lerp(0.7f, 0.28f, (Game.gm.staffLevel[6] - 1) / 4f);
                 Sfx.Play(Snd.Punch, 0.7f);
                 if (chaseThief.TakeHit())
                     chaseThief = null; // caught: thief returned loot & fled
             }
         }
+    }
+
+    bool IsFirstSecurity()
+    {
+        for (int i = 0; i < Game.staff.Count; i++)
+            if (Game.staff[i] != null && Game.staff[i].role == 6) return Game.staff[i] == this;
+        return true;
     }
 
     // ---- cashier ----
@@ -167,7 +187,8 @@ public class Staff : MonoBehaviour
         switch (state)
         {
             case S.Idle:
-                if (carriedFish.Count >= 4) { state = S.MoveToDeliver; break; }
+                int fishCapacity = Game.gm.StaffCapacity(1);
+                if (carriedFish.Count >= fishCapacity) { state = S.MoveToDeliver; break; }
                 chaseTarget = Game.sea != null ? Game.sea.FindTarget(RandomSeaPoint(), 40f) : null;
                 if (chaseTarget != null) state = S.MoveToWork;
                 else { timer = 2f; state = S.Working; }
@@ -175,7 +196,7 @@ public class Staff : MonoBehaviour
 
             case S.MoveToWork:
                 if (chaseTarget == null || chaseTarget.state != Fish.State.Wild) { state = S.Idle; break; }
-                if (MoveTo(chaseTarget.transform.position, dt)) { timer = 1.1f; state = S.Working; }
+                if (MoveTo(chaseTarget.transform.position, dt)) { timer = 1.25f * Game.gm.StaffWorkTimeMultiplier(1); state = S.Working; }
                 break;
 
             case S.Working:
@@ -193,7 +214,7 @@ public class Staff : MonoBehaviour
                         chaseTarget = null;
                     }
                     else chaseTarget = null;
-                    state = carriedFish.Count >= 4 ? S.MoveToDeliver : S.Idle;
+                    state = carriedFish.Count >= Game.gm.StaffCapacity(1) ? S.MoveToDeliver : S.Idle;
                 }
                 break;
 
@@ -270,14 +291,14 @@ public class Staff : MonoBehaviour
             case S.Idle:
                 if (Game.depot == null) { timer = 2f; break; }
                 int sp;
-                if (carriedCrates < 5 &&
+                if (carriedCrates < Game.gm.StaffCapacity(2) &&
                     Vector3.Distance(transform.position, Game.depot.transform.position) < 4f &&
                     Game.depot.TryTakeForTank(out sp))
                 {
                     crateSpecies = sp;
                     carriedCrates++;
                     AddCrateVisual();
-                    if (carriedCrates >= 5) state = S.MoveToDeliver;
+                    if (carriedCrates >= Game.gm.StaffCapacity(2)) state = S.MoveToDeliver;
                 }
                 else if (carriedCrates > 0) state = S.MoveToDeliver;
                 else MoveTo(Game.depot.transform.position + new Vector3(0f, 0f, -3f), dt);
@@ -346,8 +367,8 @@ public class Staff : MonoBehaviour
     }
 
     // ---- janitor (land) / sea cleaner ----
-    void TickJanitor(float dt) { TickCleaner(dt, false, 3); }
-    void TickSeaCleaner(float dt) { TickCleaner(dt, true, 5); }
+    void TickJanitor(float dt) { TickCleaner(dt, false, Game.gm.StaffCapacity(3)); }
+    void TickSeaCleaner(float dt) { TickCleaner(dt, true, Game.gm.StaffCapacity(4)); }
 
     // Smarter routing: always chases the trash NEAREST to itself, keeps
     // collecting until full or the area is clean, then returns to the bin.
@@ -411,7 +432,7 @@ public class Staff : MonoBehaviour
                 break;
 
             case S.MoveToWork:
-                if (MoveTo(moveTarget, dt)) { timer = 2f; state = S.Working; }
+                if (MoveTo(moveTarget, dt)) { timer = 2.4f * Game.gm.StaffWorkTimeMultiplier(5); state = S.Working; }
                 break;
 
             case S.Working:
