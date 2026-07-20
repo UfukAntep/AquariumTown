@@ -9,6 +9,7 @@ public class TrashItem : MonoBehaviour
     bool carried;
     Transform stain;          // pollution slick that slowly spreads in water
     float stainT;
+    bool largeTrash;
 
     public float KillRadius { get { return inSea ? 1.0f + stainT * 2.6f : 0f; } }
     public float StainSize { get { return stainT; } }
@@ -38,7 +39,7 @@ public class TrashItem : MonoBehaviour
             }
             else
             {
-                Color c = sea ? new Color(0.4f, 0.45f, 0.4f) : new Color(0.7f, 0.65f, 0.55f);
+                Color c = sea ? new Color(0.42f, 0.22f, 0.08f) : new Color(0.7f, 0.65f, 0.55f);
                 B.Prim(PrimitiveType.Sphere, "Ball", go.transform, new Vector3(0f, 0.22f, 0f), Vector3.zero, new Vector3(0.45f, 0.35f, 0.45f), MatLib.Get(c));
                 B.Prim(PrimitiveType.Cube, "Bit", go.transform, new Vector3(0.15f, 0.32f, 0.1f), new Vector3(20f, 40f, 10f), Vector3.one * 0.18f, MatLib.Get(c * 0.85f));
             }
@@ -49,10 +50,21 @@ public class TrashItem : MonoBehaviour
             go.AddComponent<Bobber>().amp = 0.06f;
             // spreading slick, like liquid spilled on a table
             GameObject st = B.Prim(PrimitiveType.Cylinder, "Stain", null, pos + Vector3.up * 0.08f, Vector3.zero,
-                new Vector3(0.6f, 0.015f, 0.6f), MatLib.Glass(new Color(0.16f, 0.3f, 0.2f, 0.45f)));
+                new Vector3(0.6f, 0.015f, 0.6f), MatLib.Glass(new Color(0.38f, 0.17f, 0.045f, 0.72f)));
             st.transform.SetParent(go.transform, true);
             t.stain = st.transform;
         }
+        return t;
+    }
+
+    public static TrashItem FromExisting(GameObject existing)
+    {
+        if (existing == null) return null;
+        TrashItem t = existing.GetComponent<TrashItem>();
+        if (t == null) t = existing.AddComponent<TrashItem>();
+        t.inSea = false;
+        t.largeTrash = true;
+        existing.name = "ToppledLoungerTrash";
         return t;
     }
 
@@ -82,6 +94,7 @@ public class TrashItem : MonoBehaviour
         Bobber b = GetComponent<Bobber>();
         if (b != null) Destroy(b);
         if (stain != null) { Destroy(stain.gameObject); stain = null; }
+        if (largeTrash) transform.localScale = Vector3.one * 0.62f;
     }
 
     public void DumpInto(Vector3 binPos)
@@ -119,6 +132,26 @@ public class TrashSystem : MonoBehaviour
 
     public int Count { get { landItems.RemoveAll(i => i == null); return landItems.Count; } }
     public int SeaCount { get { seaItems.RemoveAll(i => i == null); return seaItems.Count; } }
+    public int ShopCount
+    {
+        get
+        {
+            landItems.RemoveAll(i => i == null);
+            int count = 0;
+            for (int i = 0; i < landItems.Count; i++) if (landItems[i].transform.position.x <= 8f) count++;
+            return count;
+        }
+    }
+    public int BeachCount
+    {
+        get
+        {
+            landItems.RemoveAll(i => i == null);
+            int count = 0;
+            for (int i = 0; i < landItems.Count; i++) if (landItems[i].transform.position.x > 8f) count++;
+            return count;
+        }
+    }
 
     public static TrashSystem Create(Vector3 binPos, Transform parent)
     {
@@ -153,7 +186,7 @@ public class TrashSystem : MonoBehaviour
         if (poopTimer <= 0f)
         {
             poopTimer = Random.Range(14f, 26f);
-            if (Count < 8 && Random.value < Game.gm.PoopChanceMult)
+            if (ShopCount < 8 && Random.value < Game.gm.PoopChanceMult)
             {
                 Customer[] custs = FindObjectsByType<Customer>(FindObjectsSortMode.None);
                 if (custs.Length > 0)
@@ -224,7 +257,13 @@ public class TrashSystem : MonoBehaviour
         landItems.Add(TrashItem.Create(pos, false, poop));
     }
 
-    public void ScatterIntoSea(Vector3 center, int pieces)
+    public void RegisterLargeTrash(GameObject item)
+    {
+        TrashItem trash = TrashItem.FromExisting(item);
+        if (trash != null && !landItems.Contains(trash)) landItems.Add(trash);
+    }
+
+    public void ScatterIntoSea(Vector3 center, int pieces, bool notify = true)
     {
         for (int i = 0; i < pieces; i++)
         {
@@ -232,7 +271,7 @@ public class TrashSystem : MonoBehaviour
             if (Game.sea != null && Game.sea.Contains(pos))
                 seaItems.Add(TrashItem.Create(pos, true));
         }
-        if (Game.ui != null) Game.ui.Toast("Copler denize dagildi! Yayilmadan topla!");
+        if (notify && Game.ui != null) Game.ui.Toast("Copler denize dagildi! Yayilmadan topla!");
     }
 
     public TrashItem FindNear(Vector3 pos, float radius, bool sea)

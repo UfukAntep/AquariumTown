@@ -55,7 +55,8 @@ public class Toilets : MonoBehaviour
     void Build()
     {
         BuildAreaShell(transform, false);
-        B.Text3D("TUVALETLER", transform, new Vector3(3f, 3.6f, 2f), 0.13f, new Color(0.4f, 0.7f, 0.95f));
+        TextMesh toiletTitle = B.Text3D("TUVALETLER", transform, new Vector3(3f, 4.1f, 2f), 0.2f, new Color(0.2f, 0.65f, 1f));
+        toiletTitle.fontStyle = FontStyle.Bold;
 
         for (int i = 0; i < Game.gm.toiletCount; i++) AddUnit(0);
         for (int i = 0; i < Game.gm.sinkCount; i++) AddUnit(1);
@@ -87,9 +88,11 @@ public class Toilets : MonoBehaviour
         {
             B.Prim(PrimitiveType.Cube, "ToiletWallFrontLocked", parent, new Vector3(3f, 0.8f, -4.5f), Vector3.zero,
                 new Vector3(15f, 1.6f, 0.18f), wall, true);
-            B.Text3D("KILITLI\nTUVALET ALANI", parent, new Vector3(3f, 2.8f, 0f), 0.14f, Color.white);
-            B.Text3D("$" + B.Money(GameManager.ToiletAreaCost) + "  (Sv " + GameManager.ToiletAreaLevel + ")",
-                parent, new Vector3(3f, 1.8f, 0f), 0.12f, new Color(1f, 0.9f, 0.3f));
+            TextMesh lockedTitle = B.Text3D("KILITLI TUVALET ALANI", parent, new Vector3(3f, 4.1f, 0f), 0.19f, Color.white);
+            lockedTitle.fontStyle = FontStyle.Bold;
+            TextMesh lockedPrice = B.Text3D("$" + B.Money(GameManager.ToiletAreaCost) + "  (Sv " + GameManager.ToiletAreaLevel + ")",
+                parent, new Vector3(3f, 3.25f, 0f), 0.15f, new Color(1f, 0.9f, 0.3f));
+            lockedPrice.fontStyle = FontStyle.Bold;
         }
         else
         {

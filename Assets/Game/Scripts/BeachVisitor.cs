@@ -116,7 +116,11 @@ public class BeachVisitor : MonoBehaviour
     void LeaveMess()
     {
         if (lounger != null && Random.value < 0.7f)
+        {
             lounger.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 75f); // toppled
+            if (Game.trash != null) Game.trash.RegisterLargeTrash(lounger);
+            lounger = null; // ownership passes to the trash system
+        }
         if (Game.trash != null)
         {
             int n = Random.Range(3, 7);

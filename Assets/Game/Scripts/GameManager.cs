@@ -10,12 +10,18 @@ public class GameManager : MonoBehaviour
     public int unlockedCount = 1;             // species 0..unlockedCount-1 are unlocked; Level == unlockedCount
     public int[] staffCounts = new int[StaffInfo.RoleCount];
     public int[] staffLevel = new int[StaffInfo.RoleCount];
-    public int[] shopUpg = new int[4]; // quake, alarm, hygiene, efficiency
+    public int[] shopUpg = new int[6]; // strengthening, alarm, hygiene, efficiency, management room, camera desk
     public int[] tankLevel = new int[SpeciesInfo.Count];
     public bool[] decorOwned = new bool[DecorInfo.Count];
     public bool[] zoneOpen = new bool[5]; // shop expansion areas (zone 0 free)
-    public bool[] techOwned = new bool[6];   // 0 pusula, 1 harita, 2 navigasyon(minimap), 3 uzaktan kontrol, 4 otomatik radar, 5 otomatik dukkan
-    public bool[] techEnabled = new bool[6]; // owned techs can be toggled on/off
+    public bool[] techOwned = new bool[9];   // 6 generator, 7 cameras, 8 golden-fish tracker
+    public bool[] techEnabled = new bool[9];
+    public int generatorLevel;
+    public int cameraLevel;
+    public bool[] playerWeaponsOwned = new bool[3];
+    public bool[] securityWeaponsOwned = new bool[3];
+    public int activePlayerWeapon = -1;
+    public int activeSecurityWeapon = -1;
     public bool[] discovered = new bool[SpeciesInfo.Count]; // caught at least once (VERITABANI)
     public int jetskiLevel = 1;
     public int rampLevel = 1;
@@ -27,12 +33,12 @@ public class GameManager : MonoBehaviour
     public int reviewCount, reviewStarSum;
     public int dayReviewCount, dayStarSum;
     public int totalCustomers;
+    public int totalFishSold;
     public long totalRevenue;
 
     // day cycle
     public int dayNumber = 1;
     public int dayCustomers, dayFishSold, dayIncome, dayExpense;
-    int lateInfoDay = -1;
     public int floorStyle, wallStyle;
     public int toiletCount;
     public int sinkCount;
@@ -81,10 +87,35 @@ public class GameManager : MonoBehaviour
     }
     public float QuakeResistance { get { return 0.12f * shopUpg[0]; } }
     public float ThiefTimeBonus { get { return 2f * shopUpg[1]; } }
+    public int PlayerWeaponDamage { get { int[] values = { 2, 3, 5 }; return activePlayerWeapon < 0 ? 1 : values[Mathf.Clamp(activePlayerWeapon, 0, 2)]; } }
+    public float PlayerWeaponRange { get { float[] values = { 3.4f, 3f, 9f }; return activePlayerWeapon < 0 ? 2.8f : values[Mathf.Clamp(activePlayerWeapon, 0, 2)]; } }
+    public int SecurityWeaponBonus { get { int[] values = { 1, 2, 4 }; return activeSecurityWeapon < 0 ? 0 : values[Mathf.Clamp(activeSecurityWeapon, 0, 2)]; } }
+
+    public static readonly int[] PlayerWeaponCosts = { 350, 1200, 4500 };
+    public static readonly int[] SecurityWeaponCosts = { 600, 1800, 6000 };
+
+    public bool TryBuyOrEquipWeapon(bool security, int weapon)
+    {
+        if (weapon < 0 || weapon >= 3) return false;
+        bool[] owned = security ? securityWeaponsOwned : playerWeaponsOwned;
+        if (!owned[weapon])
+        {
+            int cost = security ? SecurityWeaponCosts[weapon] : PlayerWeaponCosts[weapon];
+            if (!TrySpend(cost)) return false;
+            owned[weapon] = true;
+            Sfx.Play(Snd.Buy, 0.8f);
+        }
+        if (security) activeSecurityWeapon = weapon;
+        else activePlayerWeapon = weapon;
+        Save();
+        return true;
+    }
 
     void Awake()
     {
         Game.gm = this;
+        if (techOwned == null || techOwned.Length < TechCosts.Length) Array.Resize(ref techOwned, TechCosts.Length);
+        if (techEnabled == null || techEnabled.Length < TechCosts.Length) Array.Resize(ref techEnabled, TechCosts.Length);
         for (int i = 0; i < tankLevel.Length; i++) tankLevel[i] = 1;
         for (int i = 0; i < staffLevel.Length; i++) staffLevel[i] = 1;
         Load();
@@ -102,10 +133,12 @@ public class GameManager : MonoBehaviour
     public int ZoneCost(int b) { return 500 * (int)Mathf.Pow(4, b); } // 2000, 8000, 32K, 128K
 
     // ---------- technology ----------
-    public static readonly int[] TechCosts = { 600, 4000, 40000, 2500, 1500, 3000 };
+    public static readonly int[] TechCosts = { 600, 4000, 40000, 2500, 1500, 3000, 1800, 2500, 3500 };
 
     public bool TryBuyTech(int i)
     {
+        if (i == 6) return TryUpgradeGenerator();
+        if (i == 7) return TryUpgradeCameras();
         if (i < 0 || i >= techOwned.Length || techOwned[i]) return false;
         if (!TrySpend(TechCosts[i])) return false;
         techOwned[i] = true;
@@ -117,10 +150,39 @@ public class GameManager : MonoBehaviour
 
     public bool TechActive(int i) { return techOwned[i] && techEnabled[i]; }
 
+    public int GeneratorUpgradeCost { get { return generatorLevel == 0 ? TechCosts[6] : 1800 + generatorLevel * 1200; } }
+    public int CameraUpgradeCost { get { return cameraLevel == 0 ? TechCosts[7] : 2500 + cameraLevel * 1800; } }
+
+    public bool TryUpgradeGenerator()
+    {
+        if (generatorLevel >= 5 || !TrySpend(GeneratorUpgradeCost)) return false;
+        generatorLevel++;
+        techOwned[6] = techEnabled[6] = true;
+        GeneratorUnit.Ensure();
+        if (Game.generator != null) Game.generator.RefreshVisual();
+        Sfx.Play(Snd.Buy, 0.8f);
+        return true;
+    }
+
+    public bool TryUpgradeCameras()
+    {
+        if (shopUpg.Length <= 5 || shopUpg[5] <= 0)
+        {
+            if (Game.ui != null) Game.ui.Toast("Once Dukkan Gelistirme'den Kamera Izleme Masasi almalisin.", 4f);
+            return false;
+        }
+        if (cameraLevel >= 5 || !TrySpend(CameraUpgradeCost)) return false;
+        cameraLevel++;
+        techOwned[7] = techEnabled[7] = true;
+        SecurityCameraSystem.Refresh();
+        Sfx.Play(Snd.Buy, 0.8f);
+        return true;
+    }
+
     // ---------- day cycle / stats ----------
     public bool CustomersAllowed
     {
-        get { return clockMinutes >= 8f * 60f && clockMinutes < 22f * 60f; }
+        get { return clockMinutes >= 6f * 60f && clockMinutes < 22f * 60f; }
     }
 
     public void MarkDiscovered(int sp)
@@ -132,7 +194,25 @@ public class GameManager : MonoBehaviour
     {
         dayIncome += amount;
         totalRevenue += Mathf.Max(0, amount);
-        if (fromCustomer) { dayCustomers++; dayFishSold++; }
+        if (fromCustomer)
+        {
+            dayCustomers++;
+            dayFishSold++;
+            totalFishSold++;
+            TryStartSecondTankTutorial();
+        }
+    }
+
+    void TryStartSecondTankTutorial()
+    {
+        if (totalFishSold < 5 || unlockedCount >= 2 || Game.ui == null || Game.player == null) return;
+        if (PlayerPrefs.GetInt(P + "SecondTankTutorialShown", 0) == 1) return;
+        PlayerPrefs.SetInt(P + "SecondTankTutorialShown", 1);
+        PlayerPrefs.Save();
+        Game.ui.ShowPausedInfo("YENI AKVARYUM ZAMANI!",
+            "Ilk 5 balik satisini tamamladin!\n\n" +
+            "Simdi ikinci balik turunun akvaryum alanini acabilirsin. Isareti takip edip alanin uzerinde dur.",
+            delegate { SecondTankGuideArrow.Create(); });
     }
 
     public void RegisterCustomerArrival()
@@ -172,7 +252,7 @@ public class GameManager : MonoBehaviour
 
     public int ShopUpgradeCost(int index)
     {
-        int[] bases = { 900, 700, 650, 600 };
+        int[] bases = { 900, 700, 650, 600, 1400, 2200 };
         if (index < 0 || index >= shopUpg.Length) return int.MaxValue;
         return bases[index] * (shopUpg[index] + 1);
     }
@@ -180,8 +260,14 @@ public class GameManager : MonoBehaviour
     public bool TryBuyShopUpgrade(int index)
     {
         if (index < 0 || index >= shopUpg.Length || shopUpg[index] >= 5) return false;
+        if (index == 5 && shopUpg[4] <= 0)
+        {
+            if (Game.ui != null) Game.ui.Toast("Once Yonetim Odasi gelistirmesini almalisin.", 4f);
+            return false;
+        }
         if (!TrySpend(ShopUpgradeCost(index))) return false;
         shopUpg[index]++;
+        if (index == 4 || index == 5) ManagementRoomSystem.Refresh();
         Sfx.Play(Snd.Buy, 0.8f);
         return true;
     }
@@ -220,9 +306,11 @@ public class GameManager : MonoBehaviour
         dayReviewCount = 0; dayStarSum = 0;
         salariesPaid = false;
         clockMinutes = 6f * 60f; // day always resumes at 06:00
+        shopOpen = false;
+        GameBootstrap.UpdateGateBarrier();
         QuestSystem.GenerateDaily();
         Save();
-        if (Game.ui != null) Game.ui.Toast("Gun " + dayNumber + " basladi! Gunaydin!");
+        if (Game.ui != null) Game.ui.Toast("Gun " + dayNumber + " basladi! Dukkan su anda KAPALI.");
     }
 
     public bool GetHistory(int day, out int c, out int f, out int inc, out int exp, out int reviews, out int reviewStars)
@@ -264,6 +352,7 @@ public class GameManager : MonoBehaviour
         if (Money > 0) hadPositiveMoney = true;
         if (Game.ui != null) Game.ui.OnMoneyChanged();
         CheckBankruptcy();
+
     }
 
     public bool TrySpend(int amount)
@@ -373,6 +462,7 @@ public class GameManager : MonoBehaviour
         if (staffCounts[role] >= StaffInfo.MaxCount[role]) return false;
         if (role == 2 && !HasDepot()) return false;
         if (role == 5 && toiletCount == 0) return false;
+        if (role == 8 && generatorLevel <= 0) return false;
         // no upfront cost — you just commit to paying the daily salary at day-end
         staffCounts[role]++;
         Staff.Create(role, Customer.DoorPos);
@@ -522,8 +612,21 @@ public class GameManager : MonoBehaviour
         if (clockMinutes >= 1440f) clockMinutes -= 1440f;
         CheckBankruptcy();
 
-        if (prevClock < 22f * 60f && clockMinutes >= 22f * 60f && TotalStaffCount() > 0 &&
-            PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0)
+        bool crossedClosingTime = prevClock < 22f * 60f && clockMinutes >= 22f * 60f;
+        if (crossedClosingTime && PlayerPrefs.GetInt(P + "ClosingTimeTutorialV2", 0) == 0 &&
+            Game.ui != null && Game.player != null)
+        {
+            PlayerPrefs.SetInt(P + "ClosingTimeTutorialV2", 1);
+            bool mentionStaff = TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0;
+            if (mentionStaff) PlayerPrefs.SetInt(P + "StaffShiftInfo", 1);
+            PlayerPrefs.Save();
+            string staffLine = mentionStaff ? "\n\nCalisanlarin da paydos etti; sabah 08:00'de geri gelecekler." : "";
+            Game.ui.ShowPausedInfo("SAAT 22:00 - GUNU BITIR",
+                "Musteriler her gun 06:00 ile 22:00 arasinda gelir." + staffLine +
+                "\n\nGunu bitirmek icin yonetim masandaki bilgisayara git.",
+                delegate { if (Game.ui != null) Game.ui.BeginEndDayDeskGuide(); });
+        }
+        else if (crossedClosingTime && TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0)
         {
             PlayerPrefs.SetInt(P + "StaffShiftInfo", 1);
             PlayerPrefs.Save();
@@ -544,17 +647,6 @@ public class GameManager : MonoBehaviour
             {
                 if (shopOpen) { shopOpen = false; GameBootstrap.UpdateGateBarrier(); if(Game.ui != null) Game.ui.Toast("Dukkan otomatik olarak KAPATILDI."); }
             }
-        }
-
-        // 22:00 -> shop night: tell the player how to end the day (once per day)
-        if (clockMinutes >= 22f * 60f && clockMinutes < 23f * 60f && lateInfoDay != dayNumber && Game.ui != null && Game.player != null)
-        {
-            lateInfoDay = dayNumber;
-            Game.ui.ShowInfo("SAAT 22:00 - DUKKAN KAPANDI!",
-                "Bu saatten sonra musteri gelmez.\n" +
-                "Kasadaki PC'ye git ve ustteki 'GUNU BITIR' tusuna bas:\n" +
-                "gunun ozetini gor, maaslari ode, yeni gune baslat!\n" +
-                "(Basmazsan saat 05:00'te gun otomatik biter.)");
         }
 
         // 05:00 auto-end: if the player never ended the day, do it for them
@@ -618,12 +710,22 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "RevCount", reviewCount);
         PlayerPrefs.SetInt(P + "RevSum", reviewStarSum);
         PlayerPrefs.SetInt(P + "TotalCustomers", totalCustomers);
+        PlayerPrefs.SetInt(P + "TotalFishSold", totalFishSold);
         PlayerPrefs.SetString(P + "TotalRevenue", totalRevenue.ToString());
         PlayerPrefs.SetInt(P + "Open", shopOpen ? 1 : 0);
         PlayerPrefs.SetInt(P + "AutoOpen", autoOpenTime);
         PlayerPrefs.SetInt(P + "AutoClose", autoCloseTime);
         PlayerPrefs.SetInt(P + "JetskiLevel", jetskiLevel);
         PlayerPrefs.SetInt(P + "RampLevel", rampLevel);
+        PlayerPrefs.SetInt(P + "GeneratorLevel", generatorLevel);
+        PlayerPrefs.SetInt(P + "CameraLevel", cameraLevel);
+        PlayerPrefs.SetInt(P + "ActivePlayerWeapon", activePlayerWeapon);
+        PlayerPrefs.SetInt(P + "ActiveSecurityWeapon", activeSecurityWeapon);
+        for (int i = 0; i < 3; i++)
+        {
+            PlayerPrefs.SetInt(P + "PlayerWeapon" + i, playerWeaponsOwned[i] ? 1 : 0);
+            PlayerPrefs.SetInt(P + "SecurityWeapon" + i, securityWeaponsOwned[i] ? 1 : 0);
+        }
         PlayerPrefs.SetFloat(P + "Clock", clockMinutes);
         for (int i = 0; i < upg.Length; i++) PlayerPrefs.SetInt(P + "Upg" + i, upg[i]);
         for (int i = 0; i < shopUpg.Length; i++) PlayerPrefs.SetInt(P + "ShopUpg" + i, shopUpg[i]);
@@ -679,6 +781,17 @@ public class GameManager : MonoBehaviour
         autoCloseTime = PlayerPrefs.GetInt(P + "AutoClose", 22);
         jetskiLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "JetskiLevel", 1), 1, 5);
         rampLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "RampLevel", 1), 1, 5);
+        generatorLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "GeneratorLevel", PlayerPrefs.GetInt(P + "Tech6", 0)), 0, 5);
+        cameraLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "CameraLevel", PlayerPrefs.GetInt(P + "Tech7", 0)), 0, 5);
+        activePlayerWeapon = Mathf.Clamp(PlayerPrefs.GetInt(P + "ActivePlayerWeapon", -1), -1, 2);
+        activeSecurityWeapon = Mathf.Clamp(PlayerPrefs.GetInt(P + "ActiveSecurityWeapon", -1), -1, 2);
+        for (int i = 0; i < 3; i++)
+        {
+            playerWeaponsOwned[i] = PlayerPrefs.GetInt(P + "PlayerWeapon" + i, 0) == 1;
+            securityWeaponsOwned[i] = PlayerPrefs.GetInt(P + "SecurityWeapon" + i, 0) == 1;
+        }
+        if (activePlayerWeapon >= 0 && !playerWeaponsOwned[activePlayerWeapon]) activePlayerWeapon = -1;
+        if (activeSecurityWeapon >= 0 && !securityWeaponsOwned[activeSecurityWeapon]) activeSecurityWeapon = -1;
         clockMinutes = PlayerPrefs.GetFloat(P + "Clock", 9 * 60f);
         for (int i = 0; i < upg.Length; i++) upg[i] = PlayerPrefs.GetInt(P + "Upg" + i, 0);
         for (int i = 0; i < shopUpg.Length; i++) shopUpg[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "ShopUpg" + i, 0), 0, 5);
@@ -698,19 +811,23 @@ public class GameManager : MonoBehaviour
         dayIncome = PlayerPrefs.GetInt(P + "DayI", 0);
         dayExpense = PlayerPrefs.GetInt(P + "DayE", 0);
         totalCustomers = PlayerPrefs.GetInt(P + "TotalCustomers", -1);
+        totalFishSold = PlayerPrefs.GetInt(P + "TotalFishSold", -1);
         long parsedRevenue;
         if (!long.TryParse(PlayerPrefs.GetString(P + "TotalRevenue", ""), out parsedRevenue)) parsedRevenue = -1;
         totalRevenue = parsedRevenue;
-        if (totalCustomers < 0 || totalRevenue < 0)
+        if (totalCustomers < 0 || totalRevenue < 0 || totalFishSold < 0)
         {
             int historicalCustomers = 0;
+            int historicalFishSold = 0;
             long historicalRevenue = 0;
             for (int d = 1; d < dayNumber; d++)
             {
                 historicalCustomers += Mathf.Max(0, PlayerPrefs.GetInt(P + "H" + d + "_c", 0));
+                historicalFishSold += Mathf.Max(0, PlayerPrefs.GetInt(P + "H" + d + "_f", 0));
                 historicalRevenue += Mathf.Max(0, PlayerPrefs.GetInt(P + "H" + d + "_i", 0));
             }
             if (totalCustomers < 0) totalCustomers = historicalCustomers + dayCustomers;
+            if (totalFishSold < 0) totalFishSold = historicalFishSold + dayFishSold;
             if (totalRevenue < 0) totalRevenue = historicalRevenue + dayIncome;
         }
         string disc = PlayerPrefs.GetString(P + "Disc", "");

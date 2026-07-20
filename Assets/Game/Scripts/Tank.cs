@@ -15,8 +15,10 @@ public class Tank : MonoBehaviour
     int incoming;
     TextMesh stockText;
     Transform decorRoot;
-    GameObject glassGo, crackGo;
+    GameObject glassGo, waterGo, shardRoot;
+    bool filterRunning = true;
     float repairTime; // repairs are FREE: just stand next to the tank
+    int bulletHits, bulletHitsToBreak;
 
     public int Count { get { return visualFish.Count + extraCount; } }
     public int MaxCapacity { get { return Game.gm != null ? Game.gm.TankCapacity(species) : 5; } }
@@ -51,7 +53,7 @@ public class Tank : MonoBehaviour
 
         B.Prim(PrimitiveType.Cylinder, "Base", transform, new Vector3(0f, 0.45f, 0f), Vector3.zero, new Vector3(4.2f, 0.45f, 4.2f), baseM);
         B.Prim(PrimitiveType.Cylinder, "Ribbon", transform, new Vector3(0f, 0.72f, 0f), Vector3.zero, new Vector3(4.25f, 0.06f, 4.25f), ribbon);
-        B.Prim(PrimitiveType.Cylinder, "Water", transform, new Vector3(0f, 1.55f, 0f), Vector3.zero, new Vector3(3.7f, 0.62f, 3.7f), waterM);
+        waterGo = B.Prim(PrimitiveType.Cylinder, "Water", transform, new Vector3(0f, 1.55f, 0f), Vector3.zero, new Vector3(3.7f, 0.62f, 3.7f), waterM);
         glassGo = B.Prim(PrimitiveType.Cylinder, "Glass", transform, new Vector3(0f, 1.7f, 0f), Vector3.zero, new Vector3(3.9f, 0.85f, 3.9f), glassM);
 
         CapsuleCollider cc = gameObject.AddComponent<CapsuleCollider>();
@@ -107,6 +109,11 @@ public class Tank : MonoBehaviour
         {
             stockText.text = "KIRIK! Tamir icin yaninda dur";
             stockText.color = new Color(1f, 0.4f, 0.3f);
+        }
+        else if (!filterRunning)
+        {
+            stockText.text = "FILTRE DURDU! Jeneratoru calistir";
+            stockText.color = new Color(1f, 0.72f, 0.2f);
         }
         else
         {
@@ -206,12 +213,12 @@ public class Tank : MonoBehaviour
         broken = true;
         Sfx.Play(Snd.GlassBreak, 0.9f);
         repairTime = 0f;
-        glassGo.transform.localEulerAngles = new Vector3(12f, 0f, 8f);
-        crackGo = B.Prim(PrimitiveType.Cube, "Crack", transform, new Vector3(0f, 1.7f, -1.9f), new Vector3(0f, 0f, 35f),
-            new Vector3(0.1f, 1.4f, 0.1f), MatLib.Get(new Color(0.2f, 0.2f, 0.25f)));
+        glassGo.SetActive(false);
+        if (waterGo != null) waterGo.SetActive(false);
+        SpawnGlassShards();
         // fish spill on the floor and flop
         visualFish.RemoveAll(x => x == null);
-        int spill = Mathf.Min(Count, 6);
+        int spill = Mathf.Min(Count, VisualCap);
         extraCount = Mathf.Max(0, Count - visualFish.Count); // keep bookkeeping
         for (int i = 0; i < spill && visualFish.Count > 0; i++)
         {
@@ -223,6 +230,62 @@ public class Tank : MonoBehaviour
         }
         extraCount = 0; // the rest escaped/lost
         UpdateText();
+    }
+
+    public bool HitByBullet()
+    {
+        if (broken) return false;
+        if (bulletHitsToBreak <= 0) bulletHitsToBreak = Random.Range(1, 3);
+        bulletHits++;
+        if (bulletHits >= bulletHitsToBreak)
+        {
+            Break();
+            return true;
+        }
+        if (Game.ui != null) Game.ui.Toast(SpeciesInfo.Name(species) + " akvaryumu catladi! Bir mermi daha kirabilir.", 3f);
+        Sfx.Play(Snd.Crash, 0.55f);
+        return false;
+    }
+
+    public void SetFilterRunning(bool running)
+    {
+        filterRunning = running;
+        UpdateText();
+    }
+
+    public void LoseFishFromFilterFailure()
+    {
+        if (broken || Count <= 0) return;
+        visualFish.RemoveAll(f => f == null);
+        if (extraCount > 0) extraCount--;
+        else if (visualFish.Count > 0)
+        {
+            Fish fish = visualFish[visualFish.Count - 1];
+            visualFish.RemoveAt(visualFish.Count - 1);
+            if (fish != null) fish.Die();
+        }
+        UpdateText();
+        if (Game.ui != null) Game.ui.Toast(SpeciesInfo.Name(species) + " akvaryumunda filtresizlikten bir balik oldu!", 4f);
+    }
+
+    void SpawnGlassShards()
+    {
+        if (shardRoot != null) Destroy(shardRoot);
+        shardRoot = new GameObject("ShatteredGlass");
+        shardRoot.transform.SetParent(transform, false);
+        Material glass = MatLib.Glass(new Color(0.68f, 0.9f, 1f, 0.62f));
+        const int shardCount = 22;
+        for (int i = 0; i < shardCount; i++)
+        {
+            float angle = i * Mathf.PI * 2f / shardCount + Random.Range(-0.12f, 0.12f);
+            Vector3 local = new Vector3(Mathf.Cos(angle) * 1.85f, Random.Range(0.85f, 2.5f), Mathf.Sin(angle) * 1.85f);
+            GameObject shard = B.Prim(PrimitiveType.Cube, "GlassShard_" + i, shardRoot.transform, local,
+                new Vector3(Random.Range(-35f, 35f), -angle * Mathf.Rad2Deg, Random.Range(-35f, 35f)),
+                new Vector3(Random.Range(0.28f, 0.72f), Random.Range(0.45f, 1.05f), Random.Range(0.035f, 0.09f)), glass);
+            GlassShard motion = shard.AddComponent<GlassShard>();
+            Vector3 outward = new Vector3(Mathf.Cos(angle), Random.Range(0.55f, 1.15f), Mathf.Sin(angle));
+            motion.Launch(outward * Random.Range(3.2f, 6.4f), Random.Range(-480f, 480f));
+        }
     }
 
     void Update()
@@ -253,8 +316,12 @@ public class Tank : MonoBehaviour
     void Repair()
     {
         broken = false;
+        bulletHits = 0;
+        bulletHitsToBreak = 0;
+        glassGo.SetActive(true);
         glassGo.transform.localEulerAngles = Vector3.zero;
-        if (crackGo != null) Destroy(crackGo);
+        if (waterGo != null) waterGo.SetActive(true);
+        if (shardRoot != null) { Destroy(shardRoot); shardRoot = null; }
         Sfx.Play(Snd.Repair, 0.75f);
         // surviving floppers jump back in
         for (int i = 0; i < floppers.Count; i++)
@@ -268,5 +335,33 @@ public class Tank : MonoBehaviour
         floppers.Clear();
         UpdateText();
         if (Game.ui != null) Game.ui.Toast(SpeciesInfo.Name(species) + " tanki tamir edildi!");
+    }
+}
+
+public class GlassShard : MonoBehaviour
+{
+    Vector3 velocity;
+    float spin;
+    bool settled;
+
+    public void Launch(Vector3 initialVelocity, float spinSpeed)
+    {
+        velocity = initialVelocity;
+        spin = spinSpeed;
+    }
+
+    void Update()
+    {
+        if (settled) return;
+        velocity.y -= 16f * Time.deltaTime;
+        transform.position += velocity * Time.deltaTime;
+        transform.Rotate(new Vector3(spin, spin * 0.7f, spin * 0.35f) * Time.deltaTime, Space.Self);
+        if (transform.position.y <= 0.08f)
+        {
+            Vector3 position = transform.position;
+            position.y = 0.08f;
+            transform.position = position;
+            settled = true;
+        }
     }
 }

@@ -134,6 +134,53 @@ public static class Loc
         En("UZAKTAN KONTROL", "REMOTE CONTROL"); En("OTOMATIK RADAR", "AUTO RADAR"); En("OTOMATIK DUKKAN", "AUTO SHOP");
         En("ANASAYFA", "HOME"); En("KUPALAR", "TROPHIES"); En("KUPA KOLEKSIYONU", "TROPHY COLLECTION");
         En("KONTROLLER", "CONTROLS"); En("KLAVYE", "KEYBOARD"); En("FARE", "MOUSE");
+        En("SECILI", "SELECTED"); En("YUKARI OK", "UP ARROW"); En("ASAGI OK", "DOWN ARROW");
+        En("SOL OK", "LEFT ARROW"); En("SAG OK", "RIGHT ARROW"); En("BASILI TUT", "HOLD");
+        En("Hareket: WASD veya ok tuslari. Degistirmek icin mavi tusa, sonra yeni klavye tusuna bas.",
+            "Movement: WASD or arrow keys. To rebind, press the blue button, then press a new keyboard key.");
+        En("Sol ve sag tik atamalarini istedigin zaman yer degistirebilirsin.",
+            "You can swap the left and right mouse assignments at any time.");
+        En("HAREKET / YONLENDIRME", "MOVE / STEER"); En("Tepeden gorunumde git", "Move in top-down view");
+        En("Musteri veya hirsiza vur", "Hit a customer or thief");
+        En("SOL / SAG TIK YER DEGISTIR", "SWAP LEFT / RIGHT CLICK");
+        En("Space ve fare yumrugu birlikte kullanilabilir. Ok yonleri her zaman aktiftir.",
+            "Space and mouse punch can both be used. Arrow keys are always active.");
+        En("MUSTERI SAATLERI", "CUSTOMER HOURS");
+        En("Musteriler sabah 06:00 ile aksam 22:00 arasinda gelir.",
+            "Customers visit between 06:00 and 22:00.");
+        En("Gunu bitirmek icin yonetim masandaki bilgisayara gidebilirsin.",
+            "You can use the computer at your management desk to end the day.");
+        En("GUNU BITIRMEK ICIN YONETIM MASANA GIT", "GO TO YOUR MANAGEMENT DESK TO END THE DAY");
+        En("Hirsiz baliklarinizi veya paralarinizi calabilir.", "A thief can steal your fish or money.");
+        En("Onu kovala ve farenin SAG TIK tusuyla veya SPACE ile vur!",
+            "Chase him and hit him with RIGHT CLICK or SPACE!");
+        En("DENIZ KIRLENMEYE BASLADI", "THE SEA IS GETTING POLLUTED");
+        En("Artik deniz zamanla kendi kendine kirlenebilir.", "The sea can now become polluted over time.");
+        En("Deniz kirliligine dikkat et; temizlemezsen baliklar olebilir.",
+            "Watch sea pollution; fish may die if you do not clean it.");
+        En("MUSTERILERIN TUVALET IHTIYACI VAR", "CUSTOMERS NEED TOILETS");
+        En("Musteriler artik tuvalet kullanmak istiyor.", "Customers now want to use toilets.");
+        En("Tuvalet alanin yoksa satin al. Temiz bir tuvalet bulunmazsa musteri memnuniyeti duser.",
+            "Buy a toilet area if you do not have one. Customer satisfaction falls when no clean toilet is available.");
+        En("SAHIL TATILI BASLADI", "BEACH SEASON HAS STARTED");
+        En("Tatilciler artik sahile ve denize geliyor.", "Vacationers now visit the beach and sea.");
+        En("Sahili pisletebilir ve arkalarinda cop birakabilirler. Sahili ara ara temizlemeyi unutma.",
+            "They can litter the beach. Remember to clean it regularly.");
+        En("DIKKAT! Sopali bir hirsiz dukkana geliyor", "WARNING! A baton-wielding thief is entering the shop");
+        En("TEHLIKE! Silahli bir hirsiz dukkana geliyor", "DANGER! An armed thief is entering the shop");
+        En("DUKKAN KIRLILIGI", "SHOP POLLUTION"); En("DENIZ KIRLILIGI", "SEA POLLUTION");
+        En("SAHIL KIRLILIGI", "BEACH POLLUTION"); En("CAN", "HEALTH");
+        En("DUKKAN", "SHOP"); En("DENIZ", "SEA"); En("SAHIL", "BEACH");
+        En("DUKKAN SAGLAMLASTIRMA", "SHOP REINFORCEMENT");
+        En("YONETIM ODASI", "MANAGEMENT ROOM"); En("KAMERA IZLEME MASASI", "CAMERA MONITORING DESK");
+        En("GUVENLIK KAMERALARI", "SECURITY CAMERAS"); En("JENERATOR", "GENERATOR");
+        En("ELEKTRIK TEKNISYENI", "ELECTRICIAN"); En("JENERATOR GEREKLI", "GENERATOR REQUIRED");
+        En("IZLEME MASASI GEREKLI", "MONITORING DESK REQUIRED");
+        En("ELEKTRIK KESINTILERI BASLADI", "POWER OUTAGES HAVE STARTED");
+        En("OKUL GEZILERI BASLADI", "SCHOOL TRIPS HAVE STARTED");
+        En("FIRTINA MEVSIMI BASLADI", "STORM SEASON HAS STARTED");
+        En("DUSMANLARIN ARTTI", "YOUR ENEMIES HAVE MULTIPLIED");
+        En("OKUL GEZISI", "SCHOOL TRIP"); En("OGRETMEN", "TEACHER"); En("OGRENCI", "STUDENT");
         En("Kayit hazirlaniyor", "Preparing save data"); En("Oyun sahnesi yukleniyor", "Loading game scene");
         En("Oyun dunyasi hazirlaniyor", "Preparing game world"); En("Kayit ve sirket bilgileri okunuyor", "Reading save and company data");
         En("Dukkan ve sahil kuruluyor", "Building shop and beach"); En("Kamera ve arayuz hazirlaniyor", "Preparing camera and interface");
@@ -164,7 +211,11 @@ public static class Loc
         En("Zemin hazirlaniyor", "Preparing the ground"); En("Dukkan kuruluyor", "Building the shop");
         En("Giris ve iskele kuruluyor", "Building the entrance and dock");
         En("YUKLENIYOR", "LOADING"); En("OYUN CALISIYOR", "GAME IS RUNNING");
+        En("80 TUR", "80 SPECIES"); En("YAKALA", "CATCH"); En("BUYUT", "GROW");
+        En("AKVARYUM IMPARATORLUGUNU KUR", "BUILD YOUR AQUARIUM EMPIRE");
+        En("DENIZIN YILDIZLARI", "STARS OF THE SEA"); En("DENIZ CANLISI", "SEA CREATURE");
         En("COPLERI TOPLA", "COLLECT TRASH"); En("COP KUTUSUNA GOTUR", "TAKE TO TRASH BIN");
+        En("COP KUTUSU", "TRASH BIN");
         En("MAKS SEVIYE", "MAX LEVEL"); En("YUMRUK", "PUNCH"); En("ETKILESIM", "INTERACT");
         En("ILERI", "FORWARD"); En("GERI", "BACK"); En("SOLA", "LEFT"); En("SAGA", "RIGHT");
         En("TOPLAM MUSTERI", "TOTAL CUSTOMERS"); En("YILDIZ ORTALAMASI", "AVERAGE RATING"); En("TOPLAM YORUM", "TOTAL REVIEWS");

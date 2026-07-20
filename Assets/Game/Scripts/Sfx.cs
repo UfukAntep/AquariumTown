@@ -5,7 +5,8 @@ public enum Snd
 {
     Catch, Drop, Cash, Buy, Collect, Tick, Laugh, Alarm, Crash, Splash, Punch,
     Spend, LevelUp, Thief, Quake, Throw, GlassBreak, Repair, TrashPickup,
-    TrashDump, ShopToggle, Shark, MoneyPickup
+    TrashDump, ShopToggle, Shark, MoneyPickup, PowerOut, PowerOn, Generator,
+    SchoolBus, Children, Storm
 }
 
 // Lightweight procedural audio: the game remains self-contained and every
@@ -127,6 +128,12 @@ public static class Sfx
             case Snd.ShopToggle: return Tone(new float[] { 330f, 494f, 659f }, 0.075f);
             case Snd.Shark: return Tone(new float[] { 110f, 92f, 73f }, 0.16f);
             case Snd.MoneyPickup: return Tone(new float[] { 988f, 1318f, 1568f }, 0.07f);
+            case Snd.PowerOut: return Tone(new float[] { 260f, 180f, 110f }, 0.18f);
+            case Snd.PowerOn: return Tone(new float[] { 220f, 440f, 660f, 880f }, 0.1f);
+            case Snd.Generator: return Noise(0.9f, 0.32f, 95f);
+            case Snd.SchoolBus: return Tone(new float[] { 392f, 392f, 523f, 523f }, 0.16f);
+            case Snd.Children: return Tone(new float[] { 880f, 1046f, 988f, 1175f, 1046f, 1318f }, 0.09f);
+            case Snd.Storm: return Noise(1.8f, 0.72f, 60f);
             default: return Tone(new float[] { 784f }, 0.06f);
         }
     }

@@ -11,6 +11,13 @@ public class RuntimeAssetCatalog : ScriptableObject
     public Sprite[] tabIcons;
     public Sprite[] decorIcons;
     public Sprite[] itemIcons;
+    public Sprite clockIcon;
+    public Sprite cameraIcon;
+    public Sprite trainingIcon;
+    public Sprite weaponIcon;
+    public Sprite batonIcon;
+    public Sprite knifeIcon;
+    public Sprite gunIcon;
     public GameObject[] fishPrefabs;
     public Material skyMaterial;
     public GameObject arrowPrefab;
@@ -51,6 +58,16 @@ public static class GameAssets
     {
         RuntimeAssetCatalog c = Catalog;
         return c != null && c.itemIcons != null && i >= 0 && i < c.itemIcons.Length ? c.itemIcons[i] : null;
+    }
+
+    public static Sprite ClockIcon { get { return Catalog != null ? Catalog.clockIcon : null; } }
+    public static Sprite CameraIcon { get { return Catalog != null ? Catalog.cameraIcon : null; } }
+    public static Sprite TrainingIcon { get { return Catalog != null ? Catalog.trainingIcon : null; } }
+    public static Sprite WeaponIcon { get { return Catalog != null ? Catalog.weaponIcon : null; } }
+    public static Sprite WeaponItemIcon(int index)
+    {
+        if (Catalog == null) return null;
+        return index == 0 ? Catalog.batonIcon : index == 1 ? Catalog.knifeIcon : Catalog.gunIcon;
     }
 
     public static GameObject FishPrefab(int species)

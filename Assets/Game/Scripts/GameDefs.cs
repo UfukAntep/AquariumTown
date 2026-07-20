@@ -19,6 +19,8 @@ public static class Game
     public static EventManager events;
     public static Jetski jetski;
     public static RampZone ramp;
+    public static GeneratorUnit generator;
+    public static CameraDeskUnit cameraDesk;
     public static Transform world;
     public static List<Tank> tanks = new List<Tank>();
     public static List<Staff> staff = new List<Staff>();
@@ -26,7 +28,7 @@ public static class Game
     public static void Clear()
     {
         gm = null; player = null; register = null; managerDesk = null; ui = null; pc = null; sea = null;
-        depot = null; trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; world = null;
+        depot = null; trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; generator = null; cameraDesk = null; world = null;
         tanks = new List<Tank>();
         staff = new List<Staff>();
         TrophySystem.ClearRuntime();
@@ -273,16 +275,16 @@ public static class UpgInfo
 // ---------- Staff roles ----------
 public static class StaffInfo
 {
-    public const int RoleCount = 8;
-    // roles: 0 cashier,1 fisher,2 carrier,3 janitor,4 sea cleaner,5 toilet cleaner,6 security,7 beach cleaner
-    public static readonly string[] Names = { "KASIYER", "AVCI", "TASIYICI", "TEMIZLIKCI", "DENIZ TEMIZLIGI", "TUVALETCI", "GUVENLIK", "SAHIL TEMIZLIGI" };
+    public const int RoleCount = 9;
+    // roles: 0 cashier,1 fisher,2 carrier,3 janitor,4 sea cleaner,5 toilet cleaner,6 security,7 beach cleaner,8 electrician
+    public static readonly string[] Names = { "KASIYER", "AVCI", "TASIYICI", "TEMIZLIKCI", "DENIZ TEMIZLIGI", "TUVALETCI", "GUVENLIK", "SAHIL TEMIZLIGI", "ELEKTRIK TEKNISYENI" };
     public static readonly string[] Descs = {
         "Kasada calisir (maks 1)", "Denizden balik toplar", "Depodan tanklara tasir",
         "Magaza coplerini toplar", "Denizdeki copleri toplar", "Tuvaletleri temizler",
-        "Hirsizlari dover ve caldigini geri koyar", "Sahildeki copleri toplar" };
+        "Hirsizlari dover ve caldigini geri koyar", "Sahildeki copleri toplar", "Kesintide jeneratore kosup elektrigi geri getirir" };
     // paid as a DAILY SALARY (deducted every day-end), not a one-time fee
-    public static readonly int[] Salary = { 120, 260, 200, 90, 170, 110, 300, 140 };
-    public static readonly int[] MaxCount = { 1, 6, 4, 4, 4, 3, 3, 3 };
+    public static readonly int[] Salary = { 120, 260, 200, 90, 170, 110, 300, 140, 240 };
+    public static readonly int[] MaxCount = { 1, 6, 4, 4, 4, 3, 3, 3, 2 };
 }
 
 // ---------- Decor & equipment items (bought on the PC) ----------

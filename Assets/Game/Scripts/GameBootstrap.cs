@@ -11,6 +11,7 @@ public class GameBootstrap : MonoBehaviour
     static Light sun;
     static Material skyMaterial;
     static GameObject gateBarrier;
+    static bool powerOutage;
     static TextMesh gateNameText;
     // Keep the manual open/close sign inside the starting shop boundary.
     static readonly Vector3 GateSignPos = new Vector3(6.5f, 0f, 28.5f);
@@ -20,7 +21,7 @@ public class GameBootstrap : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
-        booted = false; hooked = false; instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null;
+        booted = false; hooked = false; instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null; powerOutage = false;
         displayFish = new List<Fish>();
         Game.Clear();
         MatLib.Clear();
@@ -220,7 +221,6 @@ public class GameBootstrap : MonoBehaviour
         yield return null;
         BuildDisplayAquarium();
         SeaDecor();
-        BuildFoodProps();
         LoadingScreen.Report(0.38f, "Dukkan ve sahil kuruluyor...");
         yield return null;
 
@@ -234,7 +234,10 @@ public class GameBootstrap : MonoBehaviour
 
         Sea.Create(SeaRect, transform);
         CashRegister.Create(new Vector3(1f, 0f, 20f), transform);
-        ManagerDesk.Create(new Vector3(0f, 0f, 7f), transform);
+        ManagerDesk.Create(new Vector3(2f, 0f, 5f), transform);
+        ManagementRoomSystem.Refresh();
+        if (gm.generatorLevel > 0) GeneratorUnit.Ensure();
+        SecurityCameraSystem.Refresh();
         TrashSystem.Create(new Vector3(11.5f, 0f, 18.5f), transform);
         gameObject.AddComponent<CustomerManager>();
         EventManager.Create(transform);
@@ -290,6 +293,9 @@ public class GameBootstrap : MonoBehaviour
             }
         }
         BuildZones();
+        if (PlayerPrefs.GetInt("AT3_SecondTankTutorialShown", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_SecondTankGuideDone", 0) == 0 && gm.unlockedCount < 2)
+            SecondTankGuideArrow.Create();
 
         if (gm.LoadHasDepot())
         {
@@ -349,8 +355,15 @@ public class GameBootstrap : MonoBehaviour
         if (gm.freshStart)
         {
             gm.freshStart = false;
-            for (int i = 0; i < 5; i++)
-                Game.trash.SpawnLandTrash(new Vector3(Random.Range(-20f, 2f), 0f, Random.Range(4f, 18f)), true);
+            // A compact, guaranteed indoor starter cluster. These positions are
+            // clear of the first tank, checkout, manager desk and entrance.
+            Vector3[] starterPoop = {
+                new Vector3(-3.5f, 0f, 10f), new Vector3(-1f, 0f, 10.5f),
+                new Vector3(-3f, 0f, 13f), new Vector3(0f, 0f, 13.5f),
+                new Vector3(-4.5f, 0f, 15.5f)
+            };
+            for (int i = 0; i < starterPoop.Length; i++)
+                Game.trash.SpawnLandTrash(starterPoop[i], true);
             Game.ui.ShowInfo("DUKKANINA HOS GELDIN!",
                 "Saat daha 05:00 ve dukkanin su an KAPALI.\n" +
                 "Once yerdeki copleri toplayip disaridaki kutuya at,\n" +
@@ -360,7 +373,7 @@ public class GameBootstrap : MonoBehaviour
         LoadingScreen.Report(1f, "Hazir! Akvaryum kasabana hos geldin.");
         yield return null;
         LoadingScreen.Hide();
-        if (Game.ui != null) Game.ui.ScheduleLevel5QuakeTutorial();
+        if (Game.ui != null) Game.ui.ScheduleLevelMilestoneTutorial();
     }
 
     public static void ApplyShopName()
@@ -784,31 +797,6 @@ public class GameBootstrap : MonoBehaviour
         B.Text3D("VITRIN AKVARYUMU", transform, new Vector3(-25f, 5f, dz - 1f), 0.14f, new Color(0.7f, 0.95f, 1f));
     }
 
-    // snack tables built from the Casual Food pack
-    void BuildFoodProps()
-    {
-        MakeFoodTable(new Vector3(5f, 0f, 14f), 3);   // by the register
-        MakeFoodTable(new Vector3(22.5f, 0f, 14f), 2); // beach picnic
-    }
-
-    void MakeFoodTable(Vector3 pos, int foodCount)
-    {
-        Material wood = MatLib.Get(new Color(0.72f, 0.52f, 0.32f));
-        Material woodD = MatLib.Get(new Color(0.55f, 0.4f, 0.25f));
-        B.Prim(PrimitiveType.Cube, "TableTop", transform, pos + Vector3.up * 0.85f, Vector3.zero, new Vector3(2.6f, 0.12f, 1.4f), wood, true);
-        B.Prim(PrimitiveType.Cube, "LegA", transform, pos + new Vector3(-1.1f, 0.4f, 0f), Vector3.zero, new Vector3(0.15f, 0.8f, 1.2f), woodD);
-        B.Prim(PrimitiveType.Cube, "LegB", transform, pos + new Vector3(1.1f, 0.4f, 0f), Vector3.zero, new Vector3(0.15f, 0.8f, 1.2f), woodD);
-        for (int i = 0; i < foodCount; i++)
-        {
-            GameObject holder = new GameObject("FoodProp");
-            holder.transform.SetParent(transform, false);
-            holder.transform.position = pos + new Vector3(-0.8f + i * 0.8f, 0.95f, Random.Range(-0.3f, 0.3f));
-            holder.transform.localEulerAngles = new Vector3(0f, Random.Range(0f, 360f), 0f);
-            if (AssetLib.SpawnFood(holder.transform, 1.1f) == null)
-                B.Prim(PrimitiveType.Sphere, "Snack", holder.transform, Vector3.up * 0.15f, Vector3.zero, Vector3.one * 0.35f, MatLib.Get(new Color(1f, 0.6f, 0.3f)));
-        }
-    }
-
     void SeaDecor()
     {
         Material weed = MatLib.Get(new Color(0.3f, 0.7f, 0.5f));
@@ -843,6 +831,11 @@ public class GameBootstrap : MonoBehaviour
         }
     }
 
+    public static void SetPowerOutage(bool active)
+    {
+        powerOutage = active;
+    }
+
     void Update()
     {
         if (sun != null && Game.gm != null)
@@ -853,15 +846,17 @@ public class GameBootstrap : MonoBehaviour
             else if (hour >= 20f && hour < 21f) daylight = Mathf.Lerp(1f, 0.18f, hour - 20f);
             else if (hour >= 5f && hour < 7f) daylight = Mathf.Lerp(0.18f, 1f, (hour - 5f) / 2f);
             else daylight = 0.18f;
-            float targetIntensity = Mathf.Lerp(0.2f, 1.15f, daylight);
+            float targetIntensity = powerOutage ? 0.055f : Mathf.Lerp(0.2f, 1.15f, daylight);
             sun.intensity = Mathf.Lerp(sun.intensity, targetIntensity, Time.deltaTime * 0.5f);
             sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(15f, 65f, daylight), -35f + hour * 3f, 0f);
-            Color targetAmb = Color.Lerp(new Color(0.12f, 0.16f, 0.3f), new Color(0.6f, 0.65f, 0.7f), daylight);
+            Color targetAmb = powerOutage ? new Color(0.035f, 0.055f, 0.09f) :
+                Color.Lerp(new Color(0.12f, 0.16f, 0.3f), new Color(0.6f, 0.65f, 0.7f), daylight);
             RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, targetAmb, Time.deltaTime * 0.5f);
             if (skyMaterial != null)
             {
-                if (skyMaterial.HasProperty("_Exposure")) skyMaterial.SetFloat("_Exposure", Mathf.Lerp(0.28f, 1.08f, daylight));
-                if (skyMaterial.HasProperty("_Tint")) skyMaterial.SetColor("_Tint", Color.Lerp(new Color(0.16f, 0.2f, 0.42f, 1f), Color.white, daylight));
+                float skyLight = powerOutage ? 0.08f : daylight;
+                if (skyMaterial.HasProperty("_Exposure")) skyMaterial.SetFloat("_Exposure", Mathf.Lerp(0.28f, 1.08f, skyLight));
+                if (skyMaterial.HasProperty("_Tint")) skyMaterial.SetColor("_Tint", Color.Lerp(new Color(0.16f, 0.2f, 0.42f, 1f), Color.white, skyLight));
             }
         }
     }
@@ -884,7 +879,10 @@ public class LoadingScreen : MonoBehaviour
     static LoadingScreen current;
     Text percentText, statusText, activityText;
     RectTransform fill, shine;
-    Transform fish;
+    const float FillWidth = 894f;
+    readonly List<Image> showcaseFish = new List<Image>();
+    readonly List<Text> showcaseNames = new List<Text>();
+    readonly List<RectTransform> showcaseCards = new List<RectTransform>();
     readonly List<RectTransform> bubbles = new List<RectTransform>();
     float progress;
     float startedAt;
@@ -912,21 +910,53 @@ public class LoadingScreen : MonoBehaviour
         gameObject.AddComponent<GraphicRaycaster>();
 
         UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-            new Vector2(4000f, 4000f), new Color(0.08f, 0.52f, 0.78f), false, false);
-        GameObject glow = UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
-            new Vector2(760f, 760f), new Color(0.22f, 0.8f, 0.95f, 0.28f));
+            new Vector2(4000f, 4000f), new Color(0.025f, 0.3f, 0.58f), false, false);
+        UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.15f, 0.85f), Vector2.zero,
+            new Vector2(780f, 780f), new Color(0.1f, 0.72f, 0.92f, 0.18f));
+        UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.88f, 0.2f), Vector2.zero,
+            new Vector2(900f, 900f), new Color(0.12f, 0.78f, 0.7f, 0.14f));
+        UIKit.Icon(transform, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(0f, 75f),
+            new Vector2(1060f, 700f), new Color(0.3f, 0.88f, 1f, 0.12f));
 
-        GameObject titleArea = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -90f),
-            new Vector2(900f, 90f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        UIKit.Label(titleArea.transform, "AQUARIUM TOWN", 46, Color.white, TextAnchor.MiddleCenter, true);
+        GameObject titleArea = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -55f),
+            new Vector2(1000f, 80f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(titleArea.transform, "AQUARIUM TOWN", 48, Color.white, TextAnchor.MiddleCenter, true);
+        GameObject subtitleArea = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -125f),
+            new Vector2(1000f, 42f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(subtitleArea.transform, "80 TUR  •  YAKALA  •  BUYUT  •  AKVARYUM IMPARATORLUGUNU KUR", 19,
+            new Color(0.76f, 0.96f, 1f), TextAnchor.MiddleCenter);
 
-        GameObject fishGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
-            new Vector2(260f, 150f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        fish = fishGo.transform;
-        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(18f, 0f), new Vector2(150f, 88f), UIKit.Orange);
-        UIKit.Icon(fish, UIKit.Star(), new Vector2(0.5f, 0.5f), new Vector2(-78f, 0f), new Vector2(72f, 72f), new Color(1f, 0.48f, 0.15f));
-        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(60f, 13f), new Vector2(17f, 17f), Color.white);
-        UIKit.Icon(fish, UIKit.Circle(), new Vector2(0.5f, 0.5f), new Vector2(62f, 13f), new Vector2(7f, 7f), UIKit.BlueDark);
+        GameObject showcase = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 95f),
+            new Vector2(1080f, 290f), new Color(0.025f, 0.19f, 0.36f, 0.76f), true, true);
+        GameObject showcaseTitle = UIKit.Panel(showcase.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -9f),
+            new Vector2(410f, 38f), new Color(0.1f, 0.65f, 0.82f, 0.95f), true, false);
+        UIKit.Label(showcaseTitle.transform, "DENIZIN YILDIZLARI", 18, Color.white, TextAnchor.MiddleCenter);
+        Color[] cardColors = {
+            new Color(0.22f, 0.7f, 0.9f, 0.94f), new Color(0.32f, 0.8f, 0.66f, 0.94f),
+            new Color(1f, 0.65f, 0.22f, 0.96f), new Color(0.56f, 0.47f, 0.9f, 0.94f),
+            new Color(0.95f, 0.42f, 0.55f, 0.94f)
+        };
+        for (int i = 0; i < 5; i++)
+        {
+            float x = (i - 2) * 200f;
+            GameObject card = UIKit.Panel(showcase.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(x, -4f), new Vector2(i == 2 ? 188f : 172f, i == 2 ? 205f : 190f), cardColors[i], true, true);
+            showcaseCards.Add(card.GetComponent<RectTransform>());
+            GameObject portraitGo = new GameObject("LoadingFishPortrait");
+            portraitGo.transform.SetParent(card.transform, false);
+            Image portrait = portraitGo.AddComponent<Image>();
+            portrait.color = new Color(1f, 1f, 1f, 0f);
+            portrait.preserveAspect = true;
+            RectTransform portraitRect = portraitGo.GetComponent<RectTransform>();
+            portraitRect.anchorMin = new Vector2(0.5f, 0.5f); portraitRect.anchorMax = new Vector2(0.5f, 0.5f);
+            portraitRect.pivot = new Vector2(0.5f, 0.5f); portraitRect.anchoredPosition = new Vector2(0f, 13f);
+            portraitRect.sizeDelta = new Vector2(156f, 132f);
+            showcaseFish.Add(portrait);
+            GameObject nameArea = UIKit.Panel(card.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 8f),
+                new Vector2(154f, 34f), new Color(0.02f, 0.16f, 0.28f, 0.72f), true, false);
+            showcaseNames.Add(UIKit.Label(nameArea.transform, "...", 14, Color.white, TextAnchor.MiddleCenter));
+        }
+        StartCoroutine(PopulateFishShowcase());
 
         for (int i = 0; i < 9; i++)
         {
@@ -936,23 +966,27 @@ public class LoadingScreen : MonoBehaviour
             bubbles.Add(bubble.GetComponent<RectTransform>());
         }
 
-        GameObject statusArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -105f),
-            new Vector2(900f, 55f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        statusText = UIKit.Label(statusArea.transform, "Hazirlaniyor...", 23, Color.white, TextAnchor.MiddleCenter, true);
-        GameObject track = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -175f),
-            new Vector2(780f, 42f), new Color(0.08f, 0.28f, 0.48f, 0.9f), true, true);
+        GameObject statusArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -102f),
+            new Vector2(980f, 58f), new Color(0.02f, 0.18f, 0.34f, 0.72f), true, false);
+        statusText = UIKit.Label(statusArea.transform, "Hazirlaniyor...", 23, Color.white, TextAnchor.MiddleCenter);
+        GameObject track = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-55f, -178f),
+            new Vector2(920f, 58f), new Color(0.015f, 0.13f, 0.27f, 0.96f), true, true);
         GameObject fillGo = UIKit.Panel(track.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(8f, 0f),
-            new Vector2(1f, 28f), UIKit.Green, true, false);
+            new Vector2(1f, 40f), new Color(0.22f, 0.88f, 0.58f), true, false);
         fill = fillGo.GetComponent<RectTransform>();
-        GameObject shineGo = UIKit.Panel(track.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(8f, 0f),
-            new Vector2(70f, 24f), new Color(0.85f, 1f, 0.72f, 0.8f), true, false);
+        fillGo.AddComponent<RectMask2D>();
+        GameObject shineGo = UIKit.Panel(fillGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f),
+            new Vector2(100f, 34f), new Color(0.85f, 1f, 0.94f, 0.58f), true, false);
         shine = shineGo.GetComponent<RectTransform>();
-        GameObject percentArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -230f),
-            new Vector2(300f, 58f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        percentText = UIKit.Label(percentArea.transform, "%0", 30, Color.white, TextAnchor.MiddleCenter, true);
-        GameObject activityArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -280f),
-            new Vector2(760f, 45f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        activityText = UIKit.Label(activityArea.transform, "", 18, new Color(0.82f, 0.96f, 1f), TextAnchor.MiddleCenter);
+        for (int i = 1; i <= 3; i++)
+            UIKit.Icon(track.transform, UIKit.Circle(), new Vector2(0f, 0.5f), new Vector2(8f + FillWidth * i / 4f, 0f),
+                new Vector2(9f, 9f), new Color(1f, 1f, 1f, 0.72f));
+        GameObject percentArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(500f, -178f),
+            new Vector2(145f, 68f), UIKit.Orange, true, true);
+        percentText = UIKit.Label(percentArea.transform, "%0", 31, Color.white, TextAnchor.MiddleCenter);
+        GameObject activityArea = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -255f),
+            new Vector2(900f, 46f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        activityText = UIKit.Label(activityArea.transform, "", 18, new Color(0.78f, 0.95f, 1f), TextAnchor.MiddleCenter);
         Report(0f, "Hazirlaniyor...");
     }
 
@@ -960,9 +994,36 @@ public class LoadingScreen : MonoBehaviour
     {
         if (current == null) return;
         current.progress = Mathf.Clamp01(value);
-        if (current.fill != null) current.fill.sizeDelta = new Vector2(764f * current.progress, 28f);
+        if (current.fill != null) current.fill.sizeDelta = new Vector2(FillWidth * current.progress, 40f);
         if (current.percentText != null) current.percentText.text = "%" + Mathf.RoundToInt(current.progress * 100f);
         if (current.statusText != null) current.statusText.text = status;
+    }
+
+    System.Collections.IEnumerator PopulateFishShowcase()
+    {
+        // Render the canvas before producing portraits. Each portrait comes
+        // from the same high-quality prefab used by the fish in the game.
+        yield return null;
+        yield return null;
+        yield return null;
+        int available = Mathf.Max(1, AssetLib.SeaAnimalCount);
+        int[] picks = { 0, 7, 15, 26, 38 };
+        for (int i = 0; i < showcaseFish.Count; i++)
+        {
+            int species = picks[i] % available;
+            Sprite portrait = GameAssets.FishPortrait(species);
+            if (showcaseFish[i] != null)
+            {
+                showcaseFish[i].sprite = portrait;
+                showcaseFish[i].color = Color.white;
+            }
+            if (showcaseNames[i] != null)
+            {
+                string animalName = AssetLib.AnimalName(species);
+                showcaseNames[i].text = string.IsNullOrEmpty(animalName) ? "DENIZ CANLISI" : animalName.ToUpperInvariant();
+            }
+            yield return null;
+        }
     }
 
     public static void Hide()
@@ -977,21 +1038,25 @@ public class LoadingScreen : MonoBehaviour
         float t = Time.unscaledTime;
         if (activityText != null)
         {
-            string[] spinner = { "●○○", "○●○", "○○●", "○●○" };
-            int frame = Mathf.FloorToInt(t * 5f) % spinner.Length;
-            activityText.text = spinner[frame] + "  YUKLENIYOR  •  " + (t - startedAt).ToString("0.0") + " sn  •  OYUN CALISIYOR";
+            string[] spinner = { ".", ". .", ". . .", ". ." };
+            int frame = Mathf.FloorToInt(t * 4f) % spinner.Length;
+            activityText.text = "YUKLENIYOR  " + spinner[frame] + "     " +
+                (t - startedAt).ToString("0.0") + " sn     OYUN CALISIYOR";
         }
         if (shine != null)
         {
-            float x = 10f + Mathf.Repeat(t * 260f, 690f);
+            float visibleWidth = Mathf.Max(1f, FillWidth * progress);
+            float x = Mathf.Repeat(t * 250f, visibleWidth + 120f) - 60f;
             shine.anchoredPosition = new Vector2(x, 0f);
         }
-        if (fish != null)
+        for (int i = 0; i < showcaseCards.Count; i++)
         {
-            Vector2 p = fish.GetComponent<RectTransform>().anchoredPosition;
-            p.y = 80f + Mathf.Sin(t * 2.2f) * 12f;
-            p.x = Mathf.Sin(t * 0.8f) * 25f;
-            fish.GetComponent<RectTransform>().anchoredPosition = p;
+            RectTransform card = showcaseCards[i];
+            if (card == null) continue;
+            float baseX = (i - 2) * 200f;
+            float baseScale = i == 2 ? 1.06f : 0.94f;
+            card.anchoredPosition = new Vector2(baseX, -4f + Mathf.Sin(t * 1.8f + i * 0.9f) * 7f);
+            card.localScale = Vector3.one * (baseScale + Mathf.Sin(t * 1.35f + i) * 0.018f);
         }
         for (int i = 0; i < bubbles.Count; i++)
         {
@@ -1081,6 +1146,13 @@ public class Jetski : MonoBehaviour
         if (Game.ui != null) Game.ui.Toast("Jetski kirildi! Iskelenin yaninda $" + B.Money(RepairCost) + " odeyerek tamir et.", 6f);
     }
 
+    public void BreakFromStorm()
+    {
+        if (broken) return;
+        BreakFromShark();
+        if (Game.ui != null) Game.ui.Toast("Firtina jetskiyi kirdi! Tamiri neredeyse yenisi kadar pahali.", 5f);
+    }
+
     public bool TryRepair()
     {
         if (!broken) return false;
@@ -1140,6 +1212,10 @@ public class RampZone : MonoBehaviour
     Vector3 landing;
     float cooldown;
     GameObject rampVisual;
+    bool broken;
+    TextMesh statusText;
+    public bool Broken { get { return broken; } }
+    public int RepairCost { get { return Mathf.RoundToInt(DecorInfo.Costs[6] * 0.9f); } }
 
     public static RampZone Create(Vector3 pos, Vector3 landing, Transform parent)
     {
@@ -1150,6 +1226,7 @@ public class RampZone : MonoBehaviour
         Game.ramp = r;
         r.landing = landing;
         r.rampVisual = B.Prim(PrimitiveType.Cube, "UpgradeRamp", go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(0f, 0f, -15f), new Vector3(2.3f, 0.3f, 2.8f), MatLib.Get(UIKit.Orange), true);
+        r.statusText = B.Text3D("", go.transform, new Vector3(0f, 1.8f, 0f), 0.07f, Color.white);
         r.ApplyLevelVisual();
         return r;
     }
@@ -1162,11 +1239,36 @@ public class RampZone : MonoBehaviour
             Renderer renderer = rampVisual.GetComponent<Renderer>();
             if (renderer != null) renderer.sharedMaterial = MatLib.Get(Color.HSVToRGB(Mathf.Lerp(0.08f, 0.82f, (level - 1) / 4f), 0.65f, 1f));
         }
+        if (statusText != null) statusText.text = broken ? "RAMPA KIRIK  $" + B.Money(RepairCost) : "RAMPA  Sv" + level;
+    }
+
+    public void BreakFromStorm()
+    {
+        if (broken) return;
+        broken = true;
+        rampVisual.transform.localRotation = Quaternion.Euler(24f, 18f, 42f);
+        ApplyLevelVisual();
+        Sfx.Play(Snd.Crash, 0.85f);
+        if (Game.ui != null) Game.ui.Toast("Firtina ziplama rampasini kirdi! Yaninda E ile tamir et.", 5f);
+    }
+
+    public bool PlayerNear(Vector3 position) { return Vector3.Distance(position, transform.position) < 3.2f; }
+
+    public bool TryRepair()
+    {
+        if (!broken || !Game.gm.TrySpend(RepairCost)) return false;
+        broken = false;
+        rampVisual.transform.localRotation = Quaternion.Euler(0f, 0f, -15f);
+        ApplyLevelVisual();
+        Sfx.Play(Snd.Repair, 0.85f);
+        if (Game.ui != null) Game.ui.Toast("Ziplama rampasi tamir edildi.");
+        return true;
     }
 
     void Update()
     {
         if (Game.player == null) return;
+        if (broken) return;
         cooldown -= Time.deltaTime;
         if (cooldown > 0f) return;
         Vector3 p = Game.player.transform.position;

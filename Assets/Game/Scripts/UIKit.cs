@@ -100,7 +100,16 @@ public static class UIKit
                     (p - new Vector2(48f, 48f)).sqrMagnitude < 23f * 23f ||
                     (p - new Vector2(51f, 67f)).sqrMagnitude < 14f * 14f ||
                     (p - new Vector2(57f, 79f)).sqrMagnitude < 8f * 8f;
-                tex.SetPixel(x, y, new Color(brown.r, brown.g, brown.b, filled ? 1f : 0f));
+                Color pixel = new Color(brown.r, brown.g, brown.b, filled ? 1f : 0f);
+                bool leftEye = (p - new Vector2(40f, 51f)).sqrMagnitude < 5f * 5f;
+                bool rightEye = (p - new Vector2(57f, 51f)).sqrMagnitude < 5f * 5f;
+                bool leftPupil = (p - new Vector2(41f, 50f)).sqrMagnitude < 2f * 2f;
+                bool rightPupil = (p - new Vector2(58f, 50f)).sqrMagnitude < 2f * 2f;
+                float smileRadius = Vector2.Distance(p, new Vector2(49f, 42f));
+                bool smile = p.y < 42f && smileRadius > 8f && smileRadius < 11f && Mathf.Abs(p.x - 49f) < 10f;
+                if (filled && (leftEye || rightEye)) pixel = Color.white;
+                if (filled && (leftPupil || rightPupil || smile)) pixel = new Color(0.16f, 0.08f, 0.035f, 1f);
+                tex.SetPixel(x, y, pixel);
             }
         tex.Apply();
         poop = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);

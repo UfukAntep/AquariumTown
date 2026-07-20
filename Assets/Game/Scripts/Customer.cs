@@ -21,9 +21,21 @@ public class Customer : MonoBehaviour
 
     public static Customer Spawn()
     {
+        return SpawnInternal(false, false);
+    }
+
+    public static Customer SpawnSchool(bool teacher)
+    {
+        return SpawnInternal(true, teacher);
+    }
+
+    static Customer SpawnInternal(bool school, bool teacher)
+    {
         GameObject go = new GameObject("Customer");
         go.transform.position = DoorPos + new Vector3(Random.Range(-1f, 3f), 0f, Random.Range(-1.5f, 1.5f));
         Customer c = go.AddComponent<Customer>();
+        c.schoolTrip = school;
+        c.schoolTeacher = teacher;
         if (Game.gm != null) Game.gm.RegisterCustomerArrival();
         c.Build();
         return c;
@@ -34,8 +46,14 @@ public class Customer : MonoBehaviour
     bool reviewed;
     bool toiletChecked;
     bool attacked;
+    bool dead;
+    bool schoolTrip;
+    bool schoolTeacher;
+    float deathTimer;
     float knockTime;
+    float attackedRecovery;
     Vector3 knockVelocity;
+    public bool IsDead { get { return dead; } }
 
     void LeaveReview(bool happy)
     {
@@ -56,13 +74,16 @@ public class Customer : MonoBehaviour
             : Random.value < 0.85f
                 ? new Color(0.35f, 0.5f, Random.Range(0.85f, 1f))
                 : Color.HSVToRGB(Random.value, 0.5f, 0.95f);
-        B.Stickman(visual, col, vip ? 1.15f : 1f);
+        float characterScale = schoolTrip && !schoolTeacher ? 0.76f : vip ? 1.15f : 1f;
+        B.Stickman(visual, schoolTrip ? (schoolTeacher ? new Color(0.25f, 0.4f, 0.78f) : new Color(0.95f, 0.55f, 0.2f)) : col, characterScale);
         if (vip) B.Text3D("VIP", transform, new Vector3(0f, 3.1f, 0f), 0.1f, new Color(1f, 0.85f, 0.2f));
+        if (schoolTrip) B.Text3D(schoolTeacher ? "OGRETMEN" : "OGRENCI", transform,
+            new Vector3(0f, schoolTeacher ? 3.05f : 2.55f, 0f), 0.06f, schoolTeacher ? UIKit.Blue : UIKit.Orange);
         bubble = B.Text3D("", transform, new Vector3(0f, 2.6f, 0f), 0.09f, Color.white);
         moveTarget = GateInside;
 
         // dirty shop? some customers complain and leave right away
-        if (Game.trash != null && Game.trash.Count >= 3 && Random.value < 0.5f)
+        if (Game.trash != null && Game.trash.ShopCount >= 3 && Random.value < 0.5f)
         {
             state = CState.ExitSad;
             bubble.text = "Cok pis burasi!";
@@ -107,13 +128,29 @@ public class Customer : MonoBehaviour
 
     public void HitByThief(Vector3 attackerPos)
     {
-        if (state == CState.Exit || state == CState.ExitSad) return;
+        if (dead || state == CState.Exit) return;
+        // A customer killed by a thief loses the fish they were carrying; it
+        // does not magically return to shop stock.
+        holdingPrice = 0;
+        HideBowl();
+        if (Game.register != null) Game.register.Leave(this);
+        dead = true;
+        reviewed = true;
+        deathTimer = 8f;
+        bubble.text = "IMDAT!";
+        bubble.color = new Color(1f, 0.45f, 0.3f);
+        LaunchAway(attackerPos, 7f);
+        if (Game.gm != null) Game.gm.AddSatisfaction(-8f);
+    }
+
+    public void FleeFromGunman(Vector3 dangerPos)
+    {
+        if (dead || state == CState.Exit || state == CState.ExitSad) return;
         ReturnHeldFish();
         if (Game.register != null) Game.register.Leave(this);
-        bubble.text = "Imdat!";
-        bubble.color = new Color(1f, 0.45f, 0.3f);
-        LaunchAway(attackerPos, 6f);
-        speed = 5.5f;
+        bubble.text = "SILAH! KACIN!";
+        bubble.color = new Color(1f, 0.35f, 0.25f);
+        speed = 7f;
         state = CState.ExitSad;
         moveTarget = DoorPos;
     }
@@ -161,6 +198,29 @@ public class Customer : MonoBehaviour
             transform.position += knockVelocity * dt + Vector3.up * Mathf.Sin((0.55f - knockTime) / 0.55f * Mathf.PI) * 3f * dt;
             knockVelocity = Vector3.Lerp(knockVelocity, Vector3.zero, dt * 3f);
             visual.Rotate(Vector3.right, 520f * dt);
+            if (knockTime <= 0f)
+            {
+                Vector3 grounded = transform.position; grounded.y = 0f; transform.position = grounded;
+                if (dead) visual.rotation = Quaternion.Euler(0f, visual.eulerAngles.y, 90f);
+                else if (attacked)
+                {
+                    visual.rotation = Quaternion.Euler(0f, visual.eulerAngles.y, 90f);
+                    attackedRecovery = 0.7f;
+                }
+            }
+            return;
+        }
+        if (dead)
+        {
+            deathTimer -= dt;
+            if (deathTimer <= 0f) Destroy(gameObject);
+            return;
+        }
+        if (attackedRecovery > 0f)
+        {
+            attackedRecovery -= dt;
+            if (attackedRecovery <= 0f)
+                visual.rotation = Quaternion.Euler(0f, visual.eulerAngles.y, 0f);
             return;
         }
         switch (state)
@@ -329,8 +389,18 @@ public class Customer : MonoBehaviour
     {
         if (Game.register != null) Game.register.Leave(this);
         // leave a star review on the way out (only ~35% do, to avoid spam)
-        if (!reviewed && Game.gm != null && Random.value < 0.35f)
-            LeaveReview(bought);
+        if (!reviewed && Game.gm != null)
+        {
+            if (schoolTrip && !bought)
+            {
+                // An unprepared school visit produces a visible wave of bad
+                // feedback: every disappointed child reviews, teacher counts twice.
+                Game.gm.AddOneStarReview();
+                if (schoolTeacher) Game.gm.AddOneStarReview();
+                reviewed = true;
+            }
+            else if (Random.value < 0.35f) LeaveReview(bought);
+        }
     }
 }
 
@@ -344,16 +414,18 @@ public class CustomerManager : MonoBehaviour
         timer -= Time.deltaTime;
         if (timer > 0f) return;
 
-        // shop must be open AND within working hours (08:00 - 22:00)
+        // Shop must be open and customers visit from 06:00 until 22:00.
         if (!Game.gm.shopOpen || !Game.gm.CustomersAllowed) { timer = 2f; return; }
 
         int stockedTanks = Game.StockedTankCount();
         int alive = FindObjectsByType<Customer>(FindObjectsSortMode.None).Length;
 
-        if (stockedTanks > 0 && alive < 10)
+        // Customers still enter an empty shop and discover that there is no
+        // stock; otherwise an open shop can look broken before the first catch.
+        if (alive < 10)
         {
             Customer.Spawn();
-            float interval = Mathf.Clamp(6.5f - stockedTanks * 0.5f, 1.8f, 6.5f);
+            float interval = Mathf.Clamp(7f - stockedTanks * 0.5f, 1.8f, 7f);
             if (Game.trash != null && Game.trash.Count >= 5) interval *= 1.8f;
             timer = interval;
         }

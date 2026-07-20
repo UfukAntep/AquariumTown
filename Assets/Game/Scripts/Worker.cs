@@ -38,7 +38,7 @@ public class Staff : MonoBehaviour
         Color[] cols = {
             new Color(0.7f, 0.4f, 0.9f), new Color(0.25f, 0.7f, 0.6f), new Color(0.9f, 0.6f, 0.2f),
             new Color(0.5f, 0.65f, 0.5f), new Color(0.2f, 0.6f, 0.85f), new Color(0.8f, 0.75f, 0.5f),
-            new Color(0.2f, 0.28f, 0.42f), new Color(0.25f, 0.75f, 0.72f) };
+            new Color(0.2f, 0.28f, 0.42f), new Color(0.25f, 0.75f, 0.72f), new Color(0.95f, 0.78f, 0.18f) };
         GameObject vroot = new GameObject("Visual");
         vroot.transform.SetParent(transform, false);
         visual = vroot.transform;
@@ -92,6 +92,7 @@ public class Staff : MonoBehaviour
             case 5: TickToiletCleaner(dt); break;
             case 6: TickSecurity(dt); break;
             case 7: TickBeachCleaner(dt); break;
+            case 8: TickElectrician(dt); break;
         }
     }
 
@@ -144,7 +145,8 @@ public class Staff : MonoBehaviour
         }
         if (chaseThief == null) return;
         float d = Vector3.Distance(transform.position, chaseThief.transform.position);
-        if (d > 1.6f) MoveTo(chaseThief.transform.position, dt);
+        float attackRange = Game.gm.activeSecurityWeapon == 2 ? 8f : 1.6f;
+        if (d > attackRange) MoveTo(chaseThief.transform.position, dt);
         else
         {
             // beat it up!
@@ -154,10 +156,29 @@ public class Staff : MonoBehaviour
             {
                 punchTimer = Mathf.Lerp(0.7f, 0.28f, (Game.gm.staffLevel[6] - 1) / 4f);
                 Sfx.Play(Snd.Punch, 0.7f);
-                if (chaseThief.TakeHit())
+                StartCoroutine(SecurityWeaponVisual());
+                int damage = Mathf.Clamp(Game.gm.staffLevel[6], 1, 5) + Game.gm.SecurityWeaponBonus;
+                if (chaseThief.TakeHit(damage))
                     chaseThief = null; // caught: thief returned loot & fled
             }
         }
+    }
+
+    System.Collections.IEnumerator SecurityWeaponVisual()
+    {
+        int weapon = Game.gm != null ? Game.gm.activeSecurityWeapon : -1;
+        PrimitiveType primitive = weapon < 0 ? PrimitiveType.Sphere : PrimitiveType.Cube;
+        Vector3 scale = weapon < 0 ? Vector3.one * 0.3f : weapon == 0 ? new Vector3(0.15f, 0.15f, 1.05f) : weapon == 1 ? new Vector3(0.11f, 0.07f, 0.75f) : new Vector3(0.26f, 0.2f, 0.68f);
+        Color color = weapon < 0 ? new Color(1f, 0.72f, 0.55f) : weapon == 0 ? new Color(0.42f, 0.24f, 0.1f) : weapon == 1 ? new Color(0.82f, 0.9f, 0.96f) : new Color(0.12f, 0.14f, 0.18f);
+        GameObject item = B.Prim(primitive, "SecurityWeaponStrike", visual, new Vector3(0.42f, 1.3f, 0.35f), Vector3.zero, scale, MatLib.Get(color));
+        float t = 0f;
+        while (t < 1f && item != null)
+        {
+            t += Time.deltaTime * 8f;
+            item.transform.localPosition = new Vector3(0.42f, 1.3f, 0.35f + Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * 1.1f);
+            yield return null;
+        }
+        if (item != null) Destroy(item);
     }
 
     bool IsFirstSecurity()
@@ -165,6 +186,18 @@ public class Staff : MonoBehaviour
         for (int i = 0; i < Game.staff.Count; i++)
             if (Game.staff[i] != null && Game.staff[i].role == 6) return Game.staff[i] == this;
         return true;
+    }
+
+    void TickElectrician(float dt)
+    {
+        if (Game.events == null || !Game.events.PowerOutageActive || Game.generator == null)
+        {
+            Vector3 standby = new Vector3(5.5f, 0f, -1f);
+            MoveTo(standby, dt);
+            return;
+        }
+        if (MoveTo(Game.generator.InteractionSpot, dt))
+            Game.generator.StartByTechnician(Game.gm.staffLevel[8]);
     }
 
     // ---- cashier ----

@@ -1,9 +1,11 @@
 using UnityEngine;
 
-// Random events: thief, shark attack, earthquake, golden fish, money rain.
+// Random events and first-two-hour mechanic introductions.
 public class EventManager : MonoBehaviour
 {
     float eventTimer;
+    public bool PowerOutageActive { get; private set; }
+    Coroutine outageRoutine;
 
     public static EventManager Create(Transform parent)
     {
@@ -18,6 +20,7 @@ public class EventManager : MonoBehaviour
     void Update()
     {
         if (Game.gm == null) return; // scene restarting
+        if (PowerOutageActive) return;
         eventTimer -= Time.deltaTime;
         if (eventTimer > 0f) return;
         eventTimer = Random.Range(90f, 180f);
@@ -27,17 +30,38 @@ public class EventManager : MonoBehaviour
     void TriggerRandom()
     {
         float r = Random.value;
-        if (r < 0.32f) SpawnThief();
-        else if (r < 0.55f) TriggerShark();
-        else if (r < 0.65f) TriggerQuake(); // rare
-        else if (r < 0.85f) TriggerGoldenFish();
-        else TriggerMoneyRain();
+        // Fixed, readable chances per event roll. Locked event slices fall
+        // back to a harmless bonus instead of inflating another danger rate.
+        if (r < 0.24f) SpawnThief();                         // 24%
+        else if (r < 0.42f) TriggerShark();                  // 18%
+        else if (r < 0.50f) TriggerQuake();                  // 8%
+        else if (r < 0.64f) TriggerGoldenFish();             // 14%
+        else if (r < 0.79f) TriggerMoneyRain();              // 15%
+        else if (r < 0.87f)                                 // 8%
+        {
+            if (Game.gm.Level >= 16) TriggerPowerOutage(); else TriggerGoldenFish();
+        }
+        else if (r < 0.94f)                                 // 7%
+        {
+            if (Game.gm.Level >= 20) TriggerSchoolTrip(); else TriggerMoneyRain();
+        }
+        else                                                 // 6%
+        {
+            if (Game.gm.Level >= 23) TriggerStorm(); else TriggerGoldenFish();
+        }
     }
 
-    public void SpawnThief()
+    public void SpawnThief(bool force = false)
     {
-        if (!Game.gm.shopOpen) return;
-        Thief.Spawn();
+        if (!force && !Game.gm.shopOpen) return;
+        if (Game.gm.Level >= 30)
+        {
+            int count = Random.Range(2, 6);
+            int guaranteedGun = Random.Range(0, count);
+            for (int i = 0; i < count; i++)
+                Thief.Spawn(force, i == guaranteedGun ? 2 : Random.Range(1, 3));
+        }
+        else Thief.Spawn(force);
     }
 
     public void TriggerShark()
@@ -88,18 +112,121 @@ public class EventManager : MonoBehaviour
     public void TriggerGoldenFish()
     {
         if (Game.sea == null) return;
-        Game.sea.SpawnGolden();
+        Fish golden = Game.sea.SpawnGolden();
+        if (Game.gm.techOwned.Length > 8 && Game.gm.TechActive(8))
+            GoldenFishGuideArrow.Create(golden);
         if (Game.ui != null) Game.ui.Toast("Kiyida ALTIN BALIK belirdi! Cok degerli, kacirma!");
         Sfx.Play(Snd.Collect, 0.7f);
     }
 
-    public void TriggerMoneyRain()
+    public void TriggerMoneyRain(bool force = false)
     {
-        // donations only make sense while a customer is actually AT the register
-        if (Game.register == null || Game.register.QueueCount == 0) { TriggerGoldenFish(); return; }
+        if (Game.register == null) return;
+        // Random donations require a customer; the one-time level lesson is
+        // allowed to demonstrate the mechanic even if the queue is empty.
+        if (!force && Game.register.QueueCount == 0) { TriggerGoldenFish(); return; }
         int bonus = 20 + Game.gm.Level * 10;
         Game.register.Pay(bonus, false);
-        if (Game.ui != null) Game.ui.Toast("Comert musteri! Kasaya +" + bonus + "$ bagis birakti!");
+        PlayerPrefs.SetInt("AT3_MoneyRainOccurred", 1);
+        PlayerPrefs.Save();
+        if (Game.ui != null) Game.ui.Toast("PARA YAGMURU! Yerdeki paralari topla! +" + bonus + "$", 5f);
+        Sfx.Play(Snd.MoneyPickup, 1f);
+    }
+
+    public void TriggerPowerOutage(bool force = false)
+    {
+        if (PowerOutageActive || Game.gm == null || (!force && Game.gm.Level < 16)) return;
+        PlayerPrefs.SetInt("AT3_PowerOutageOccurred", 1);
+        PlayerPrefs.Save();
+        PowerOutageActive = true;
+        GameBootstrap.SetPowerOutage(true);
+        for (int i = 0; i < Game.tanks.Count; i++) if (Game.tanks[i] != null) Game.tanks[i].SetFilterRunning(false);
+        GeneratorUnit.Ensure();
+        if (Game.ui != null) Game.ui.Toast("ELEKTRIK KESILDI! Tank filtreleri durdu; jeneratoru calistir!", 6f);
+        Sfx.Play(Snd.PowerOut, 1f);
+        outageRoutine = StartCoroutine(PowerOutageRoutine());
+    }
+
+    System.Collections.IEnumerator PowerOutageRoutine()
+    {
+        float elapsed = 0f;
+        float nextDamage = 30f;
+        while (PowerOutageActive && elapsed < 70f)
+        {
+            elapsed += Time.deltaTime;
+            if (elapsed >= nextDamage && Game.gm != null)
+            {
+                nextDamage += 12f;
+                Game.gm.AddSatisfaction(-2f);
+                if (Game.tanks.Count > 0)
+                    Game.tanks[Random.Range(0, Game.tanks.Count)].LoseFishFromFilterFailure();
+            }
+            yield return null;
+        }
+        if (PowerOutageActive) RestorePower(false);
+    }
+
+    public void RestorePower(bool generatorUsed = true)
+    {
+        if (!PowerOutageActive) return;
+        PowerOutageActive = false;
+        if (outageRoutine != null) { StopCoroutine(outageRoutine); outageRoutine = null; }
+        GameBootstrap.SetPowerOutage(false);
+        for (int i = 0; i < Game.tanks.Count; i++) if (Game.tanks[i] != null) Game.tanks[i].SetFilterRunning(true);
+        if (Game.ui != null) Game.ui.Toast(generatorUsed ? "Jenerator calisti! Elektrik ve tank filtreleri geri geldi." : "Sebeke elektrigi geri geldi.", 5f);
+        Sfx.Play(Snd.PowerOn, 0.9f);
+    }
+
+    public void TriggerSchoolTrip(bool force = false)
+    {
+        if (Game.gm == null || (!force && Game.gm.Level < 20)) return;
+        PlayerPrefs.SetInt("AT3_SchoolTripOccurred", 1);
+        PlayerPrefs.Save();
+        StartCoroutine(SchoolTripRoutine());
+    }
+
+    System.Collections.IEnumerator SchoolTripRoutine()
+    {
+        SchoolBusVisual.Spawn();
+        Sfx.Play(Snd.SchoolBus, 1f);
+        yield return new WaitForSeconds(0.65f);
+        Sfx.Play(Snd.Children, 1f);
+        if (Game.ui != null) Game.ui.Toast("OKUL GEZISI GELDI! Stoklari ve kasayi hazirla!", 6f);
+        const int groupSize = 13;
+        for (int i = 0; i < groupSize; i++)
+        {
+            Customer.SpawnSchool(i == groupSize - 1);
+            yield return new WaitForSeconds(0.22f);
+        }
+    }
+
+    public void TriggerStorm(bool force = false)
+    {
+        if (Game.gm == null || (!force && Game.gm.Level < 23)) return;
+        PlayerPrefs.SetInt("AT3_StormOccurred", 1);
+        PlayerPrefs.Save();
+        StartCoroutine(StormRoutine());
+    }
+
+    System.Collections.IEnumerator StormRoutine()
+    {
+        if (Game.ui != null) Game.ui.Toast("FIRTINA BASLADI! Sahili, denizi ve ekipmanlari kontrol et!", 6f);
+        Sfx.Play(Snd.Storm, 1f);
+        Sfx.DangerFor(9f);
+        for (int wave = 0; wave < 7; wave++)
+        {
+            if (Game.cam != null) Game.cam.Shake(0.32f, 0.45f);
+            StormWave.Spawn(Random.Range(-25f, 72f));
+            if (Game.trash != null)
+            {
+                Game.trash.ScatterIntoSea(new Vector3(42f, 0.5f, Random.Range(-20f, 65f)), 2, false);
+                Game.trash.SpawnLandTrash(new Vector3(Random.Range(11f, 23f), 0f, Random.Range(-20f, 70f)));
+            }
+            yield return new WaitForSeconds(0.85f);
+        }
+        if (Game.jetski != null && Random.value < 0.75f) Game.jetski.BreakFromStorm();
+        if (Game.ramp != null && Random.value < 0.75f) Game.ramp.BreakFromStorm();
+        if (Game.ui != null) Game.ui.Toast("Firtina dindi. Sahili, rampayi ve jetskiyi kontrol et!", 6f);
     }
 }
 
@@ -107,10 +234,11 @@ public class EventManager : MonoBehaviour
 public class Thief : MonoBehaviour
 {
     enum Weapon { None, Baton, Gun }
-    enum TState { Enter, ToTarget, Grab, Flee, Escaped }
+    enum TState { Enter, Assault, ToTarget, Grab, Flee, Escaped }
     TState state = TState.Enter;
 
     Transform visual;
+    CharacterController controller;
     float speed = 5.2f;
     Vector3 moveTarget;
     int stolenMoney;
@@ -125,12 +253,31 @@ public class Thief : MonoBehaviour
     float attackTimer;
     float knockTime;
     Vector3 knockVelocity;
+    int fleeStage;
+    int health, maxHealth;
+    bool caughtPending;
+    float assaultTimer;
+    GameObject healthRoot;
+    Transform healthFill;
+    TextMesh healthText;
+    Transform batonArm;
+    Transform batonTarget;
+    float batonSwingTime;
+    bool batonHitPending;
 
-    public static Thief Spawn()
+    public static Thief Spawn(bool forceInside = false, int forcedWeapon = -1)
     {
         GameObject go = new GameObject("Thief");
-        go.transform.position = Customer.DoorPos;
+        // Milestone thieves must work even while the shop gate is closed, so
+        // they begin just inside the entrance instead of colliding with it.
+        go.transform.position = (forceInside ? Customer.GateInside : Customer.DoorPos) +
+            new Vector3(Random.Range(-1.4f, 1.4f), 0f, Random.Range(-1.2f, 1.2f));
         Thief t = go.AddComponent<Thief>();
+        t.controller = go.AddComponent<CharacterController>();
+        t.controller.radius = 0.48f;
+        t.controller.height = 2.1f;
+        t.controller.center = new Vector3(0f, 1.05f, 0f);
+        t.controller.stepOffset = 0.35f;
         // disguised as a normal customer
         GameObject vroot = new GameObject("Visual");
         vroot.transform.SetParent(go.transform, false);
@@ -139,31 +286,102 @@ public class Thief : MonoBehaviour
         t.moveTarget = Customer.GateInside;
         if (Game.gm != null) t.fleeTimer = 20f + Game.gm.ThiefTimeBonus;
         t.toiletThief = Game.toilets != null && Game.toilets.CanStealToilet && Random.value < 0.35f;
+        t.forcedWeapon = forcedWeapon;
         return t;
     }
 
+    int forcedWeapon = -1;
+    public bool IsRevealed { get { return revealed; } }
+
     void Reveal()
     {
+        if (revealed) return;
         revealed = true;
         Material black = MatLib.Get(new Color(0.1f, 0.1f, 0.12f));
         foreach (MeshRenderer mr in visual.GetComponentsInChildren<MeshRenderer>())
             mr.sharedMaterial = black;
         B.Prim(PrimitiveType.Cube, "Mask", visual, new Vector3(0f, 1.8f, 0.22f), Vector3.zero, new Vector3(0.5f, 0.15f, 0.2f), MatLib.Get(new Color(0.9f, 0.2f, 0.2f)));
         B.Text3D("HIRSIZ!", transform, new Vector3(0f, 2.7f, 0f), 0.1f, new Color(1f, 0.3f, 0.3f));
-        weapon = Game.gm.Level >= 25 ? Weapon.Gun : Game.gm.Level >= 10 ? Weapon.Baton : Weapon.None;
+        weapon = forcedWeapon >= 0 ? (Weapon)Mathf.Clamp(forcedWeapon, 0, 2) :
+            Game.gm.Level >= 25 ? Weapon.Gun : Game.gm.Level >= 10 ? Weapon.Baton : Weapon.None;
+        maxHealth = weapon == Weapon.Gun ? 10 : weapon == Weapon.Baton ? 5 : 1;
+        health = maxHealth;
+        BuildHealthBar();
         if (weapon == Weapon.Baton)
-            B.Prim(PrimitiveType.Cube, "Sopa", visual, new Vector3(0.65f, 1.1f, 0.15f), new Vector3(15f, 0f, -25f),
-                new Vector3(0.16f, 1.5f, 0.16f), MatLib.Get(new Color(0.42f, 0.23f, 0.1f)));
+        {
+            GameObject armPivot = new GameObject("SopaKolu");
+            armPivot.transform.SetParent(visual, false);
+            armPivot.transform.localPosition = new Vector3(0.48f, 1.35f, 0f);
+            batonArm = armPivot.transform;
+            Material body = MatLib.Get(new Color(0.1f, 0.1f, 0.12f));
+            Material wood = MatLib.Get(new Color(0.42f, 0.23f, 0.1f));
+            B.Prim(PrimitiveType.Capsule, "Kol", batonArm, new Vector3(0f, -0.3f, 0f), Vector3.zero,
+                new Vector3(0.2f, 0.55f, 0.2f), body);
+            B.Prim(PrimitiveType.Cube, "Sopa", batonArm, new Vector3(0f, -1.02f, 0.02f), new Vector3(0f, 0f, -5f),
+                new Vector3(0.16f, 1.25f, 0.16f), wood);
+            batonArm.localRotation = Quaternion.Euler(10f, 0f, -12f);
+        }
         else if (weapon == Weapon.Gun)
         {
             B.Prim(PrimitiveType.Cube, "Silah", visual, new Vector3(0.55f, 1.15f, 0.35f), Vector3.zero,
                 new Vector3(0.2f, 0.28f, 0.85f), MatLib.Get(new Color(0.14f, 0.16f, 0.2f)));
             B.Text3D("TEHLIKELI!", transform, new Vector3(0f, 3.2f, 0f), 0.075f, new Color(1f, 0.65f, 0.2f));
+            Customer[] frightened = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+            for (int i = 0; i < frightened.Length; i++) frightened[i].FleeFromGunman(transform.position);
         }
         Sfx.Play(Snd.Alarm, 0.7f);
         Sfx.Play(Snd.Thief, 0.75f);
         Sfx.BeginDanger();
-        if (Game.ui != null) Game.ui.Toast("HIRSIZ! Yakala, esyalarini geri al!");
+        if (Game.ui != null)
+        {
+            if (PlayerPrefs.GetInt("AT3_ThiefTutorialDone", 0) == 0)
+            {
+                PlayerPrefs.SetInt("AT3_ThiefTutorialDone", 1);
+                PlayerPrefs.Save();
+                Game.ui.ShowPausedInfo("HIRSIZ!",
+                    "Hirsiz baliklarinizi veya paralarinizi calabilir.\n\n" +
+                    "Onu kovala ve farenin SAG TIK tusuyla veya SPACE ile vur!");
+            }
+            else Game.ui.Toast("HIRSIZ! Yakala, esyalarini geri al!");
+        }
+    }
+
+    void BuildHealthBar()
+    {
+        healthRoot = new GameObject("ThiefHealthBar");
+        healthRoot.transform.SetParent(transform, false);
+        Material back = MatLib.Get(new Color(0.16f, 0.08f, 0.08f));
+        Material red = MatLib.Get(new Color(0.95f, 0.16f, 0.12f));
+        B.Prim(PrimitiveType.Cube, "Back", healthRoot.transform, new Vector3(0f, 3.55f, 0f), Vector3.zero,
+            new Vector3(2.15f, 0.13f, 0.28f), back);
+        GameObject bar = B.Prim(PrimitiveType.Cube, "Health", healthRoot.transform, new Vector3(0f, 3.58f, -0.16f), Vector3.zero,
+            new Vector3(2f, 0.15f, 0.3f), red);
+        healthFill = bar.transform;
+        healthText = B.Text3D("", healthRoot.transform, new Vector3(0f, 3.95f, 0f), 0.065f, Color.white);
+        healthRoot.SetActive(false);
+        UpdateHealthBar();
+    }
+
+    void UpdateHealthBar()
+    {
+        if (healthFill == null) return;
+        float fraction = Mathf.Clamp01((float)health / Mathf.Max(1, maxHealth));
+        healthFill.localScale = new Vector3(2f * fraction, 0.15f, 0.3f);
+        healthFill.localPosition = new Vector3(-1f + fraction, 3.58f, -0.16f);
+        if (healthText != null) healthText.text = "CAN  " + Mathf.Max(0, health) + " / " + maxHealth;
+    }
+
+    void ChooseLootTarget()
+    {
+        if (Game.register.PileAmount > 0)
+            moveTarget = Game.register.transform.position + new Vector3(-3.6f, 0f, -1.2f);
+        else
+        {
+            stolenFrom = PickStockedTank();
+            if (stolenFrom == null) { BeginFlee(); return; }
+            moveTarget = stolenFrom.FrontPoint;
+        }
+        state = TState.ToTarget;
     }
 
     bool MoveTo(Vector3 t, float dt)
@@ -173,9 +391,20 @@ public class Thief : MonoBehaviour
         Vector3 to = t - pos;
         if (to.magnitude < 0.3f) return true;
         Vector3 dir = to.normalized;
-        transform.position += dir * speed * dt;
+        Vector3 motion = dir * speed * dt;
+        if (controller != null && controller.enabled) controller.Move(motion);
+        else transform.position += motion;
         visual.rotation = Quaternion.Slerp(visual.rotation, Quaternion.LookRotation(dir), 10f * dt);
         return false;
+    }
+
+    void BeginFlee()
+    {
+        state = TState.Flee;
+        fleeStage = 0;
+        moveTarget = Customer.GateInside;
+        fleeTimer = 20f + (Game.gm != null ? Game.gm.ThiefTimeBonus : 0f);
+        speed = 5.6f;
     }
 
     void Update()
@@ -185,13 +414,26 @@ public class Thief : MonoBehaviour
         if (knockTime > 0f)
         {
             knockTime -= dt;
-            transform.position += knockVelocity * dt + Vector3.up * Mathf.Sin((0.45f - knockTime) / 0.45f * Mathf.PI) * 3f * dt;
-            knockVelocity = Vector3.Lerp(knockVelocity, Vector3.zero, dt * 4f);
-            visual.Rotate(Vector3.right, 600f * dt);
+            Vector3 motion = knockVelocity * dt;
+            if (controller != null && controller.enabled) controller.Move(motion);
+            else transform.position += motion;
+            knockVelocity.x = Mathf.Lerp(knockVelocity.x, 0f, dt * 2.2f);
+            knockVelocity.z = Mathf.Lerp(knockVelocity.z, 0f, dt * 2.2f);
+            knockVelocity.y -= 21f * dt;
+            visual.Rotate(new Vector3(720f, 260f, 480f) * dt, Space.Self);
+            if (knockTime <= 0f)
+            {
+                Vector3 grounded = transform.position;
+                grounded.y = 0f;
+                transform.position = grounded;
+                visual.localRotation = Quaternion.identity;
+                if (caughtPending) { Caught(); return; }
+            }
             return;
         }
-        if (revealed) UpdateWeapon(dt);
-        switch (state)
+        bool batonEngaged = revealed && weapon == Weapon.Baton && HandleBatonCombat(dt);
+        if (revealed && weapon == Weapon.Gun) UpdateWeapon(dt);
+        if (!batonEngaged) switch (state)
         {
             case TState.Enter:
                 if (MoveTo(moveTarget, dt))
@@ -202,18 +444,17 @@ public class Thief : MonoBehaviour
                         state = TState.ToTarget;
                         break;
                     }
-                    Reveal();
-                    // target: cash pile if money, else a stocked tank
-                    if (Game.register.PileAmount > 0)
-                        moveTarget = Game.register.transform.position + new Vector3(-3.6f, 0f, -1.2f);
-                    else
-                    {
-                        stolenFrom = PickStockedTank();
-                        if (stolenFrom == null) { state = TState.Flee; moveTarget = FleePoint(); break; }
-                        moveTarget = stolenFrom.FrontPoint;
-                    }
-                    state = TState.ToTarget;
+                    ChooseLootTarget();
                 }
+                break;
+
+            case TState.Assault:
+                assaultTimer -= dt;
+                // Advance on the player while firing, but keep enough distance
+                // for the gunfight to remain readable.
+                if (Game.player != null && Vector3.Distance(transform.position, Game.player.transform.position) > 7f)
+                    MoveTo(Game.player.transform.position, dt);
+                if (assaultTimer <= 0f) ChooseLootTarget();
                 break;
 
             case TState.ToTarget:
@@ -221,10 +462,10 @@ public class Thief : MonoBehaviour
                 {
                     if (toiletThief)
                     {
-                        Reveal();
                         stolenToilet = Game.toilets != null && Game.toilets.TryStealToilet();
                         if (stolenToilet)
                         {
+                            Reveal();
                             loot = new GameObject("StolenToilet");
                             loot.transform.SetParent(transform, false);
                             loot.transform.localPosition = new Vector3(0f, 1.7f, -0.65f);
@@ -237,31 +478,37 @@ public class Thief : MonoBehaviour
                     else if (Game.register.PileAmount > 0)
                     {
                         stolenMoney = Game.register.StealAll();
-                        loot = B.Prim(PrimitiveType.Cube, "LootBag", transform, new Vector3(0f, 2.4f, 0f), Vector3.zero,
-                            new Vector3(0.6f, 0.6f, 0.6f), MatLib.Get(new Color(0.3f, 0.7f, 0.35f)));
+                        if (stolenMoney > 0)
+                        {
+                            Reveal();
+                            loot = B.Prim(PrimitiveType.Cube, "LootBag", transform, new Vector3(0f, 2.4f, 0f), Vector3.zero,
+                                new Vector3(0.6f, 0.6f, 0.6f), MatLib.Get(new Color(0.3f, 0.7f, 0.35f)));
+                        }
                     }
                     else if (stolenFrom != null && stolenFrom.HasStock)
                     {
                         stolenFrom.TakeForCustomer();
                         stolenSpecies = stolenFrom.species;
+                        Reveal();
                         loot = new GameObject("LootFish");
                         loot.transform.SetParent(transform, false);
                         loot.transform.localPosition = new Vector3(0f, 2.4f, 0f);
                         SpeciesInfo.Build(stolenSpecies, loot.transform, 0.5f);
                     }
-                    state = TState.Flee;
-                    fleeTimer = 20f + (Game.gm != null ? Game.gm.ThiefTimeBonus : 0f);
-                    moveTarget = FleePoint();
-                    speed = 5.6f;
+                    BeginFlee();
                 }
                 break;
 
             case TState.Flee:
                 fleeTimer -= dt;
                 if (Game.ui != null) Game.ui.ShowThiefTimer(fleeTimer);
-                MoveTo(moveTarget, dt);
+                if (MoveTo(moveTarget, dt))
+                {
+                    if (fleeStage == 0) { fleeStage = 1; moveTarget = Customer.DoorPos; }
+                    else if (fleeStage == 1) { fleeStage = 2; moveTarget = FleePoint(); }
+                    else moveTarget = FleePoint();
+                }
                 if (fleeTimer <= 0f) Escaped();
-                else if (Vector3.Distance(transform.position, moveTarget) < 1f) moveTarget = FleePoint();
                 break;
         }
         // Never disappear below the water surface; thieves keep running on the
@@ -286,40 +533,140 @@ public class Thief : MonoBehaviour
         if (weapon == Weapon.None) return;
         attackTimer -= dt;
         if (attackTimer > 0f) return;
-        if (weapon == Weapon.Baton)
-        {
-            if (Game.player != null && Vector3.Distance(transform.position, Game.player.transform.position) < 2.5f)
-            {
-                Vector3 away = Game.player.transform.position - transform.position; away.y = 0f;
-                Game.player.LaunchTo(Game.player.transform.position + away.normalized * 5f);
-                Sfx.Play(Snd.Punch, 0.9f);
-                attackTimer = 1.2f;
-                return;
-            }
-            Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
-            for (int i = 0; i < customers.Length; i++)
-                if (Vector3.Distance(transform.position, customers[i].transform.position) < 2.5f)
-                {
-                    customers[i].HitByThief(transform.position);
-                    attackTimer = 1.2f;
-                    return;
-                }
-        }
-        else
+        if (weapon == Weapon.Gun)
         {
             Vector3 target = transform.position + visual.forward * 20f;
             float pick = Random.value;
-            if (pick < 0.55f && Game.tanks.Count > 0)
-                target = Game.tanks[Random.Range(0, Game.tanks.Count)].transform.position;
-            else if (pick < 0.78f && Game.player != null)
+            Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+            System.Collections.Generic.List<Customer> living = new System.Collections.Generic.List<Customer>();
+            for (int i = 0; i < customers.Length; i++) if (!customers[i].IsDead) living.Add(customers[i]);
+            if (pick < 0.46f && living.Count > 0)
+                target = living[Random.Range(0, living.Count)].transform.position;
+            else if (pick < 0.72f && Game.player != null)
                 target = Game.player.transform.position;
-            else
+            else if (Game.tanks.Count > 0)
+                target = Game.tanks[Random.Range(0, Game.tanks.Count)].transform.position;
+            else if (living.Count > 0)
             {
-                Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
-                if (customers.Length > 0) target = customers[Random.Range(0, customers.Length)].transform.position;
+                target = living[Random.Range(0, living.Count)].transform.position;
             }
             ThiefBullet.Spawn(transform.position + Vector3.up * 1.3f, target, this);
-            attackTimer = 1.15f;
+            attackTimer = 0.85f;
+        }
+    }
+
+    // A baton thief interrupts stealing or escaping whenever the player gets
+    // close. It turns, pursues, visibly swings its arm, then deals damage at
+    // the middle of the swing instead of hitting instantly from a run cycle.
+    bool HandleBatonCombat(float dt)
+    {
+        attackTimer -= dt;
+
+        if (batonSwingTime > 0f)
+        {
+            batonSwingTime -= dt;
+            AnimateBatonSwing();
+            FaceBatonTarget(dt);
+            if (batonHitPending && batonSwingTime <= 0.24f)
+            {
+                batonHitPending = false;
+                ApplyBatonHit();
+            }
+            if (batonSwingTime <= 0f)
+            {
+                batonTarget = null;
+                if (batonArm != null) batonArm.localRotation = Quaternion.Euler(10f, 0f, -12f);
+            }
+            return true;
+        }
+
+        Transform playerTarget = Game.player != null ? Game.player.transform : null;
+        float playerDistance = playerTarget != null ? Vector3.Distance(transform.position, playerTarget.position) : float.MaxValue;
+
+        // The larger awareness radius is intentional: approaching the thief
+        // should make it defend itself instead of continuing to run away.
+        if (playerTarget != null && playerDistance <= 8.5f)
+        {
+            batonTarget = playerTarget;
+            FaceBatonTarget(dt);
+            if (playerDistance > 2.15f)
+                MoveTo(playerTarget.position, dt);
+            else if (attackTimer <= 0f)
+                StartBatonSwing(playerTarget);
+            return true;
+        }
+
+        // While no player is threatening it, a baton thief still strikes a
+        // customer who happens to block its path.
+        Customer nearest = null;
+        float nearestDistance = 2.35f;
+        Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+        for (int i = 0; i < customers.Length; i++)
+        {
+            if (customers[i].IsDead) continue;
+            float distance = Vector3.Distance(transform.position, customers[i].transform.position);
+            if (distance < nearestDistance) { nearest = customers[i]; nearestDistance = distance; }
+        }
+        if (nearest != null && attackTimer <= 0f)
+        {
+            StartBatonSwing(nearest.transform);
+            return true;
+        }
+        return false;
+    }
+
+    void StartBatonSwing(Transform target)
+    {
+        batonTarget = target;
+        batonSwingTime = 0.52f;
+        batonHitPending = true;
+        attackTimer = 1.15f;
+        FaceBatonTarget(1f);
+    }
+
+    void AnimateBatonSwing()
+    {
+        if (batonArm == null) return;
+        float progress = 1f - Mathf.Clamp01(batonSwingTime / 0.52f);
+        float angle;
+        if (progress < 0.28f)
+            angle = Mathf.Lerp(-75f, -105f, progress / 0.28f);
+        else if (progress < 0.72f)
+            angle = Mathf.Lerp(-105f, 82f, Mathf.SmoothStep(0f, 1f, (progress - 0.28f) / 0.44f));
+        else
+            angle = Mathf.Lerp(82f, 10f, (progress - 0.72f) / 0.28f);
+        batonArm.localRotation = Quaternion.Euler(angle, 0f, -12f);
+    }
+
+    void FaceBatonTarget(float dt)
+    {
+        if (batonTarget == null) return;
+        Vector3 direction = batonTarget.position - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.01f)
+            visual.rotation = Quaternion.Slerp(visual.rotation, Quaternion.LookRotation(direction), Mathf.Clamp01(14f * dt));
+    }
+
+    void ApplyBatonHit()
+    {
+        if (batonTarget == null) return;
+        if (Vector3.Distance(transform.position, batonTarget.position) > 2.7f) return;
+
+        if (Game.player != null && batonTarget == Game.player.transform)
+        {
+            Vector3 away = Game.player.transform.position - transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.01f) away = visual.forward;
+            Game.player.LaunchTo(Game.player.transform.position + away.normalized * 5f);
+            Sfx.Play(Snd.Punch, 0.9f);
+            return;
+        }
+
+        Customer customer = batonTarget.GetComponent<Customer>();
+        if (customer != null && !customer.IsDead)
+        {
+            customer.HitByThief(transform.position);
+            Sfx.Play(Snd.Punch, 0.9f);
         }
     }
 
@@ -345,24 +692,26 @@ public class Thief : MonoBehaviour
         return best;
     }
 
-    int hits;
     // returns true when the thief is subdued (loot returned, thief runs off)
-    public bool TakeHit()
+    public bool TakeHit(int damage = 1)
     {
-        return PlayerHit(transform.position - visual.forward);
+        return PlayerHit(transform.position - visual.forward, damage);
     }
 
-    public bool PlayerHit(Vector3 attackerPos)
+    public bool PlayerHit(Vector3 attackerPos, int damage = 1)
     {
-        if (!revealed) Reveal();
-        hits++;
+        if (!revealed) return false;
+        if (caughtPending) return true;
+        health = Mathf.Max(0, health - Mathf.Max(1, damage));
+        if (healthRoot != null) healthRoot.SetActive(true);
+        UpdateHealthBar();
         Vector3 away = transform.position - attackerPos; away.y = 0f;
         if (away.sqrMagnitude < 0.01f) away = -visual.forward;
-        knockVelocity = away.normalized * 8f;
-        knockTime = 0.45f;
+        knockVelocity = away.normalized * 9.5f + Vector3.up * 8.5f;
+        knockTime = 0.78f;
         Sfx.Play(Snd.Punch, 0.85f);
-        if (hits < 3) { speed = 3.5f; return false; }
-        Caught();
+        if (health > 0) { speed = Mathf.Max(3.5f, speed - 0.18f); return false; }
+        caughtPending = true;
         return true;
     }
 
@@ -457,11 +806,14 @@ public class ThiefBullet : MonoBehaviour
             Tank tank = Game.tanks[i];
             if (tank != null && !tank.broken && Vector3.Distance(transform.position, tank.transform.position + Vector3.up) < 2.1f)
             {
-                tank.Break();
-                int damage = Mathf.Min(Game.gm.Money, 100 + SpeciesInfo.Price(tank.species) / 2);
-                if (damage > 0) Game.gm.SpendTick(damage);
-                if (Game.ui != null) Game.ui.Toast("Mermi akvaryumu kirdi! -$" + B.Money(damage) + " hasar");
-                Sfx.Play(Snd.GlassBreak, 0.8f);
+                bool broke = tank.HitByBullet();
+                if (broke)
+                {
+                    int damage = Mathf.Min(Game.gm.Money, 100 + SpeciesInfo.Price(tank.species) / 2);
+                    if (damage > 0) Game.gm.SpendTick(damage);
+                    if (Game.ui != null) Game.ui.Toast("Mermi akvaryumu kirdi! -$" + B.Money(damage) + " hasar");
+                    Sfx.Play(Snd.GlassBreak, 0.8f);
+                }
                 Destroy(gameObject);
                 return;
             }

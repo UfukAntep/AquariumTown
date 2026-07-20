@@ -5,11 +5,12 @@ using UnityEngine.UI;
 // Cartoon-styled HUD + menus (uses UIKit for rounded panels, stars, pills).
 public class UIManager : MonoBehaviour
 {
-    Text moneyText, levelText, satText, clockText, dirtText, capacityText, toastText, hintText, promptText, thiefText, cameraTutorialText, trashTutorialText;
+    Text moneyText, levelText, satText, clockText, dirtText, seaDirtText, beachDirtText, capacityText, toastText, hintText, promptText, thiefText, cameraTutorialText, trashTutorialText, endDayGuideText;
     RectTransform moneyRect, satRect;
-    GameObject satRoot, promptRoot;
+    RectTransform trashTutorialRect, trashTutorialArrow, endDayGuideRect, endDayGuideArrow;
+    GameObject satRoot, promptRoot, seaDirtRoot, beachDirtRoot, capacityRoot;
     Image satIcon;
-    GameObject toastGo, cameraTutorialGo, trashTutorialGo, trashTutorialDot, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo, controlsGo, keyboardControlsPage, mouseControlsPage;
+    GameObject toastGo, cheatIndicatorGo, cameraTutorialGo, trashTutorialGo, trashTutorialDot, endDayGuideGo, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo, controlsGo, keyboardControlsPage, mouseControlsPage;
     Text celebTitle, celebSub, infoTitle, infoBody;
     GameObject infoTrophyVisual;
     RectTransform infoBodyRect;
@@ -31,6 +32,8 @@ public class UIManager : MonoBehaviour
     Text[] questTexts = new Text[3];
     float questTimer;
     Button[] bindingButtons = new Button[8];
+    Button keyboardControlsTab, mouseControlsTab;
+    GameObject keyboardTabMarker, mouseTabMarker;
     Text controlsHint, mouseMoveText, mousePunchText;
     int pendingBinding = -1;
 
@@ -41,7 +44,7 @@ public class UIManager : MonoBehaviour
     public bool MapOpen { get { return mapGo != null && mapGo.activeSelf; } }
     public bool LangOpen { get { return langGo != null && langGo.activeSelf; } }
     public bool ControlsOpen { get { return controlsGo != null && controlsGo.activeSelf; } }
-    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || ControlsOpen || (Game.pc != null && Game.pc.IsOpen); } }
+    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || ControlsOpen || (Game.cameraDesk != null && Game.cameraDesk.ViewerOpen) || (Game.pc != null && Game.pc.IsOpen); } }
 
     public static UIManager Create()
     {
@@ -50,6 +53,11 @@ public class UIManager : MonoBehaviour
         ui.Build();
         Game.ui = ui;
         return ui;
+    }
+
+    public void SetCheatIndicator(bool visible)
+    {
+        if (cheatIndicatorGo != null) cheatIndicatorGo.SetActive(visible);
     }
 
     void Build()
@@ -76,40 +84,51 @@ public class UIManager : MonoBehaviour
         GameObject starInner = UIKit.Icon(starGo.transform, UIKit.Star(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(92f, 92f), new Color(1f, 0.9f, 0.45f));
         levelText = UIKit.Label(starInner.transform, "1", 34, UIKit.TextDark, TextAnchor.MiddleCenter, true);
 
-        // ----- top-right: money / satisfaction / clock pills -----
+        cheatIndicatorGo = UIKit.Panel(transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(138f, -20f), new Vector2(150f, 38f), new Color(0.72f, 0.12f, 0.12f, 0.96f), true, true);
+        UIKit.Label(cheatIndicatorGo.transform, "CHEAT ON", 17, Color.white, TextAnchor.MiddleCenter, true);
+        cheatIndicatorGo.SetActive(false);
+
+        // ----- top-right: compact status grid, filled in vertical pairs -----
         GameObject moneyRoot;
-        moneyText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -16f), new Vector2(220f, 56f), UIKit.Cream, UIKit.Green, "$", out moneyRoot);
+        moneyText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -76f), new Vector2(210f, 52f), UIKit.Cream, UIKit.Green, "$", out moneyRoot);
         moneyRect = moneyRoot.GetComponent<RectTransform>();
 
-        satText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -80f), new Vector2(220f, 50f), UIKit.Cream, UIKit.Green, "", out satRoot);
+        GameObject clockRoot;
+        clockText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -16f), new Vector2(210f, 52f), UIKit.Cream, UIKit.Blue, "", out clockRoot);
+        Sprite timeIcon = GameAssets.ClockIcon;
+        if (timeIcon != null) UIKit.Icon(clockRoot.transform.GetChild(0), timeIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(27f, 27f), Color.white);
+
+        satText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -16f), new Vector2(210f, 52f), UIKit.Cream, UIKit.Green, "", out satRoot);
         satRect = satRoot.GetComponent<RectTransform>();
         satIcon = satRoot.transform.GetChild(0).GetComponent<Image>();
         Sprite satisfactionIcon = GameAssets.TabIcon(8);
         if (satisfactionIcon != null) UIKit.Icon(satRoot.transform.GetChild(0), satisfactionIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(28f, 28f), Color.white);
 
-        GameObject clockRoot;
-        clockText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -138f), new Vector2(220f, 46f), UIKit.Cream, UIKit.Blue, "", out clockRoot);
-        Sprite timeIcon = GameAssets.TabIcon(7);
-        if (timeIcon != null) UIKit.Icon(clockRoot.transform.GetChild(0), timeIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(27f, 27f), Color.white);
-
         GameObject dirtRoot;
-        dirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -192f), new Vector2(220f, 46f), UIKit.Cream, new Color(0.55f, 0.4f, 0.25f), "", out dirtRoot);
-        UIKit.Icon(dirtRoot.transform.GetChild(0), UIKit.Poop(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f), Color.white);
+        dirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-456f, -16f), new Vector2(210f, 52f), UIKit.Cream, new Color(0.55f, 0.4f, 0.25f), "", out dirtRoot);
+        UIKit.Icon(dirtRoot.transform.GetChild(0), UIKit.Poop(), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34f, 34f), Color.white);
 
-        GameObject capacityRoot;
-        capacityText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-16f, -246f), new Vector2(220f, 46f), UIKit.Cream, UIKit.Orange, "", out capacityRoot);
+        seaDirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-456f, -76f), new Vector2(210f, 52f), UIKit.Cream, new Color(0.15f, 0.65f, 0.88f), "", out seaDirtRoot);
+        UIKit.Label(seaDirtRoot.transform.GetChild(0), "~", 29, Color.white, TextAnchor.MiddleCenter, true);
+
+        beachDirtText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-676f, -16f), new Vector2(210f, 52f), UIKit.Cream, new Color(0.9f, 0.68f, 0.2f), "", out beachDirtRoot);
+        UIKit.Label(beachDirtRoot.transform.GetChild(0), "S", 22, Color.white, TextAnchor.MiddleCenter, true);
+
+        capacityText = UIKit.Pill(transform, new Vector2(1f, 1f), new Vector2(-236f, -76f), new Vector2(210f, 52f), UIKit.Cream, UIKit.Orange, "", out capacityRoot);
         Sprite bagIcon = GameAssets.ItemIcon(0);
         if (bagIcon != null) UIKit.Icon(capacityRoot.transform.GetChild(0), bagIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(29f, 29f), Color.white);
 
         // hover tooltips for the HUD pills
         AddTip(moneyRoot, "PARA: Kasandaki toplam para.\nMusteriler odedikce artar, gelistirmelere harcanir.");
         AddTip(satRoot, "MEMNUNIYET: Musteri mutlulugu.\nDusukse baliklar cok daha ucuza satilir!");
-        AddTip(clockRoot, "SAAT: Oyun saati ve dukkanin acik/kapali durumu.\nGece isiklar kisilir.");
-        AddTip(dirtRoot, "KIRLILIK: Magaza + deniz kirliligi.\nYukselirse musteriler kacar, denizde baliklar olur!");
+        AddTip(clockRoot, "SAAT: Oyundaki mevcut saat.\nGece isiklar kisilir.");
+        AddTip(dirtRoot, "DUKKAN KIRLILIGI: Magazadaki kaka ve copler.\nYukselirse musteriler kacar!");
+        AddTip(seaDirtRoot, "DENIZ KIRLILIGI: Sudaki cop ve yayilan lekeler.\nYukselirse baliklar olebilir!");
+        AddTip(beachDirtRoot, "SAHIL KIRLILIGI: Tatilcilerin sahilde biraktigi copler.");
         AddTip(capacityRoot, "BALIK TASIMA: Uzerindeki balik sayisi ve canta kapasitesi.");
 
         // tooltip panel
-        tipGo = UIKit.Panel(transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -306f), new Vector2(340f, 92f), new Color(0.15f, 0.15f, 0.22f, 0.95f), true, true);
+        tipGo = UIKit.Panel(transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-16f, -250f), new Vector2(430f, 92f), new Color(0.15f, 0.15f, 0.22f, 0.95f), true, true);
         tipText = UIKit.Label(tipGo.transform, "", 16, Color.white, TextAnchor.MiddleCenter);
         tipGo.SetActive(false);
 
@@ -136,14 +155,33 @@ public class UIManager : MonoBehaviour
 
         // First-cleanup beacon: a small pulsing corner marker stays visible
         // until every starter poop is collected and dumped for the first time.
-        trashTutorialGo = UIKit.Panel(transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(22f, -252f), new Vector2(285f, 62f), new Color(0.13f, 0.2f, 0.3f, 0.92f), true, true);
+        trashTutorialGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 250f), new Vector2(405f, 72f), new Color(0.08f, 0.24f, 0.2f, 0.96f), true, true);
+        trashTutorialRect = trashTutorialGo.GetComponent<RectTransform>();
         trashTutorialDot = UIKit.Icon(trashTutorialGo.transform, UIKit.Circle(), new Vector2(0f, 0.5f),
-            new Vector2(34f, 0f), new Vector2(27f, 27f), UIKit.Yellow);
+            new Vector2(28f, 0f), new Vector2(25f, 25f), UIKit.Yellow);
+        GameObject arrowArea = UIKit.Panel(trashTutorialGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(58f, 0f), new Vector2(54f, 54f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        Text trashArrowText = UIKit.Label(arrowArea.transform, "➜", 38, UIKit.Yellow, TextAnchor.MiddleCenter, true);
+        trashTutorialArrow = trashArrowText.rectTransform;
         GameObject trashTextArea = UIKit.Panel(trashTutorialGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-            new Vector2(58f, 0f), new Vector2(210f, 52f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        trashTutorialText = UIKit.Label(trashTextArea.transform, "COPLERI TOPLA  0/5", 17, Color.white, TextAnchor.MiddleLeft, true);
+            new Vector2(92f, 0f), new Vector2(295f, 58f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        trashTutorialText = UIKit.Label(trashTextArea.transform, "COPLERI TOPLA  0/5", 18, Color.white, TextAnchor.MiddleLeft, true);
         trashTutorialGo.SetActive(false);
+
+        // One-time management-desk beacon shown after the 10:00 customer-hours
+        // lesson. It follows the screen edge and points directly at the desk.
+        endDayGuideGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 245f), new Vector2(560f, 82f), new Color(0.08f, 0.2f, 0.38f, 0.97f), true, true);
+        endDayGuideRect = endDayGuideGo.GetComponent<RectTransform>();
+        GameObject deskArrowArea = UIKit.Panel(endDayGuideGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(38f, 0f), new Vector2(58f, 58f), UIKit.Yellow, true, false);
+        Text deskArrow = UIKit.Label(deskArrowArea.transform, ">", 38, new Color(0.18f, 0.25f, 0.35f), TextAnchor.MiddleCenter);
+        endDayGuideArrow = deskArrow.rectTransform;
+        GameObject deskGuideTextArea = UIKit.Panel(endDayGuideGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(78f, 0f), new Vector2(465f, 68f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        endDayGuideText = UIKit.Label(deskGuideTextArea.transform, "GUNU BITIRMEK ICIN YONETIM MASANA GIT", 18, Color.white, TextAnchor.MiddleLeft);
+        endDayGuideGo.SetActive(false);
 
         // ----- thief timer -----
         thiefGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -160f), new Vector2(440f, 64f), UIKit.Red, true, true);
@@ -358,6 +396,34 @@ public class UIManager : MonoBehaviour
         infoGo.SetActive(true);
         UpdateCursor(true);
         Sfx.Play(Snd.Collect, 0.4f);
+    }
+
+    public void ShowPausedInfo(string title, string body, System.Action onClose = null)
+    {
+        float restoreScale = Time.timeScale > 0f ? Time.timeScale : 1f;
+        Time.timeScale = 0f;
+        ShowInfo(title, body, delegate
+        {
+            Time.timeScale = restoreScale;
+            UpdateCursor(false);
+            if (onClose != null) onClose();
+        });
+    }
+
+    public void BeginEndDayDeskGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_EndDayDeskGuideDone", 0) == 1) return;
+        PlayerPrefs.SetInt("AT3_EndDayDeskGuideActive", 1);
+        PlayerPrefs.Save();
+        UpdateEndDayDeskGuide();
+    }
+
+    public void CompleteEndDayDeskGuide()
+    {
+        PlayerPrefs.SetInt("AT3_EndDayDeskGuideDone", 1);
+        PlayerPrefs.SetInt("AT3_EndDayDeskGuideActive", 0);
+        PlayerPrefs.Save();
+        if (endDayGuideGo != null) endDayGuideGo.SetActive(false);
     }
 
     // ---------- language picker (20 languages with country-accurate flags) ----------
@@ -579,13 +645,101 @@ public class UIManager : MonoBehaviour
         if (celebModel != null) Destroy(celebModel);
         if (celebCam != null) celebCam.enabled = false;
         UpdateCursor(false);
-        ScheduleLevel5QuakeTutorial();
+        ScheduleLevelMilestoneTutorial();
     }
 
-    public void ScheduleLevel5QuakeTutorial()
+    public void ScheduleLevelMilestoneTutorial()
     {
-        if (Game.gm == null || !Game.gm.ClaimLevel5QuakeTutorial()) return;
-        StartCoroutine(Level5QuakeTutorialRoutine());
+        if (Game.gm == null) return;
+        int level = Game.gm.Level;
+        if (level == 5 && Game.gm.ClaimLevel5QuakeTutorial())
+            StartCoroutine(Level5QuakeTutorialRoutine());
+        else if (level == 8) StartMilestoneOnce(8);
+        else if (level == 10) StartMilestoneOnce(10);
+        else if (level == 13) StartMilestoneOnce(13);
+        else if (level == 15) StartMilestoneOnce(15);
+        else if (level == 16) StartMilestoneOnce(16);
+        else if (level == 20) StartMilestoneOnce(20);
+        else if (level == 23) StartMilestoneOnce(23);
+        else if (level == 25) StartMilestoneOnce(25);
+        else if (level == 30) StartMilestoneOnce(30);
+    }
+
+    void StartMilestoneOnce(int level)
+    {
+        string key = "AT3_LevelMilestone_" + level;
+        if (PlayerPrefs.GetInt(key, 0) == 1) return;
+        PlayerPrefs.SetInt(key, 1);
+        PlayerPrefs.Save();
+        StartCoroutine(LevelMilestoneRoutine(level));
+    }
+
+    System.Collections.IEnumerator LevelMilestoneRoutine(int level)
+    {
+        yield return new WaitForSeconds(2.5f);
+        if (level == 8)
+            ShowPausedInfo("DENIZ KIRLENMEYE BASLADI!",
+                "Artik deniz zamanla kendi kendine kirlenebilir.\n\n" +
+                "Deniz kirliligine dikkat et; temizlemezsen baliklar olebilir.");
+        else if (level == 10)
+            ShowPausedInfo("MUSTERILERIN TUVALET IHTIYACI VAR!",
+                "Musteriler artik tuvalet kullanmak istiyor.\n\n" +
+                "Tuvalet alanin yoksa satin al. Temiz bir tuvalet bulunmazsa musteri memnuniyeti duser.\n\n" +
+                "Tuvalet alanini dukkanin en sol alt kosesinde bulabilirsin.");
+        else if (level == 15)
+            ShowPausedInfo("SAHIL TATILI BASLADI!",
+                "Tatilciler artik sahile ve denize geliyor.\n\n" +
+                "Sahili pisletebilir ve arkalarinda cop birakabilirler. Sahili ara ara temizlemeyi unutma.");
+        else if (level == 13)
+            ShowPausedInfo("SOPALI HIRSIZLARA DIKKAT!",
+                "Sopali hirsizlar artik sana ve musterilere saldirabilir. Sag tik veya SPACE ile vur; guvenlik personeli de yardim eder.",
+                delegate { StartCoroutine(Level13MechanicsRoutine()); });
+        else if (level == 16)
+            ShowPausedInfo("ELEKTRIK KESINTILERI BASLADI!",
+                "Tank filtreleri elektrik kesilince durur. PC > Teknoloji'den Jenerator alabilir ve Elektrik Teknisyeni ise alabilirsin.",
+                delegate { StartCoroutine(ForceEventAfterDelay(16)); });
+        else if (level == 20)
+            ShowPausedInfo("OKUL GEZILERI BASLADI!",
+                "Tur otobusu bir anda kalabalik getirir. Yeterli stok ve kasa personeli hazirla; karsilanmayan talep cok sayida kotu yoruma donusur.",
+                delegate { StartCoroutine(ForceEventAfterDelay(20)); });
+        else if (level == 23)
+            ShowPausedInfo("FIRTINA MEVSIMI BASLADI!",
+                "Firtinalar sahili ve denizi kirletir; iskele, rampa ve jetski zarar gorebilir. Deniz ve sahil temizligini ihmal etme.",
+                delegate { StartCoroutine(ForceEventAfterDelay(23)); });
+        else if (level == 25 && Game.events != null)
+        {
+            Toast("TEHLIKE! Silahli bir hirsiz dukkana geliyor!", 4f);
+            yield return new WaitForSeconds(1.2f);
+            Game.events.SpawnThief(true);
+        }
+        else if (level == 30)
+            ShowPausedInfo("DUSMANLARIN ARTTI!",
+                "Hirsizlar artik 2-5 kisilik gruplar halinde gelebilir. Her grupta sopa veya silah tasiyan tehlikeli kisiler olacak. Guvenligi ve kameralari gelistir.",
+                delegate { StartCoroutine(ForceEventAfterDelay(30)); });
+    }
+
+    System.Collections.IEnumerator Level13MechanicsRoutine()
+    {
+        yield return new WaitForSeconds(2.2f);
+        if (Game.events == null) yield break;
+        if (PlayerPrefs.GetInt("AT3_MoneyRainOccurred", 0) == 0)
+        {
+            Game.events.TriggerMoneyRain(true);
+            yield return new WaitForSeconds(2.5f);
+        }
+        Toast("DIKKAT! Sopali bir hirsiz dukkana geliyor!", 4f);
+        yield return new WaitForSeconds(1.2f);
+        Game.events.SpawnThief(true);
+    }
+
+    System.Collections.IEnumerator ForceEventAfterDelay(int level)
+    {
+        yield return new WaitForSeconds(2.5f);
+        if (Game.events == null) yield break;
+        if (level == 16 && PlayerPrefs.GetInt("AT3_PowerOutageOccurred", 0) == 0) Game.events.TriggerPowerOutage(true);
+        else if (level == 20 && PlayerPrefs.GetInt("AT3_SchoolTripOccurred", 0) == 0) Game.events.TriggerSchoolTrip(true);
+        else if (level == 23 && PlayerPrefs.GetInt("AT3_StormOccurred", 0) == 0) Game.events.TriggerStorm(true);
+        else if (level == 30) Game.events.SpawnThief(true);
     }
 
     System.Collections.IEnumerator Level5QuakeTutorialRoutine()
@@ -677,33 +831,45 @@ public class UIManager : MonoBehaviour
         GameObject box = UIKit.Panel(controlsGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(980f, 680f), UIKit.Cream, true, true);
         GameObject band = UIKit.Panel(box.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 14f), new Vector2(1010f, 76f), UIKit.Purple, true, true);
         UIKit.Label(band.transform, "KONTROLLER", 30, Color.white, TextAnchor.MiddleCenter, true);
-        Button keyboardTab = UIKit.Btn(box.transform, new Vector2(-215f, 252f), new Vector2(400f, 52f), UIKit.Blue, "KLAVYE", 19, delegate { ShowControlTab(true); });
-        Button mouseTab = UIKit.Btn(box.transform, new Vector2(215f, 252f), new Vector2(400f, 52f), UIKit.Orange, "FARE", 19, delegate { ShowControlTab(false); });
 
-        keyboardControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.5f), true, false);
-        GameObject keyInfo = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(850f, 62f), new Color(0.88f, 0.95f, 1f), true, false);
-        UIKit.Label(keyInfo.transform, "Hareket: WASD veya ok yonleri. Bir atamayi degistirmek icin tusuna bas, sonra yeni klavye tusuna bas.", 16, UIKit.TextDark, TextAnchor.MiddleCenter);
+        keyboardControlsTab = UIKit.Btn(box.transform, new Vector2(-215f, 252f), new Vector2(400f, 54f), UIKit.Blue, "KLAVYE", 20, delegate { ShowControlTab(true); });
+        mouseControlsTab = UIKit.Btn(box.transform, new Vector2(215f, 252f), new Vector2(400f, 54f), UIKit.Orange, "FARE", 20, delegate { ShowControlTab(false); });
+        keyboardTabMarker = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-215f, 218f), new Vector2(330f, 8f), UIKit.Yellow, true, false);
+        mouseTabMarker = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(215f, 218f), new Vector2(330f, 8f), UIKit.Yellow, true, false);
+
+        keyboardControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.62f), true, false);
+        GameObject keyInfo = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(850f, 62f), new Color(0.84f, 0.94f, 1f), true, false);
+        UIKit.Label(keyInfo.transform, "Hareket: WASD veya ok tuslari. Degistirmek icin mavi tusa, sonra yeni klavye tusuna bas.", 18, new Color(0.14f, 0.18f, 0.23f), TextAnchor.MiddleCenter);
         for (int i = 0; i < bindingButtons.Length; i++)
         {
             int action = i;
             float x = i % 2 == 0 ? -220f : 220f;
-            float y = 135f - (i / 2) * 82f;
-            GameObject row = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(410f, 68f), Color.white, true, true);
-            GameObject labelArea = UIKit.Panel(row.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(15f, 0f), new Vector2(180f, 56f), new Color(0f, 0f, 0f, 0.001f), false, false);
-            string suffix = i < 4 ? (i == 0 ? " + ↑" : i == 1 ? " + ↓" : i == 2 ? " + ←" : " + →") : "";
-            UIKit.Label(labelArea.transform, ControlBindings.Names[i] + suffix, 16, UIKit.TextDark, TextAnchor.MiddleLeft, true);
-            bindingButtons[i] = UIKit.Btn(row.transform, new Vector2(112f, 0f), new Vector2(160f, 48f), UIKit.Blue, "", 16, delegate { BeginBinding(action); });
+            float y = 115f - (i / 2) * 78f;
+            GameObject row = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(410f, 70f), Color.white, true, true);
+            GameObject labelArea = UIKit.Panel(row.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(202f, 56f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            string suffix = i < 4 ? (i == 0 ? " + YUKARI OK" : i == 1 ? " + ASAGI OK" : i == 2 ? " + SOL OK" : " + SAG OK") : "";
+            UIKit.Label(labelArea.transform, ControlBindings.Names[i] + suffix, 17, new Color(0.16f, 0.12f, 0.09f), TextAnchor.MiddleLeft);
+            bindingButtons[i] = UIKit.Btn(row.transform, new Vector2(112f, 0f), new Vector2(160f, 48f), UIKit.Blue, "", 17, delegate { BeginBinding(action); });
         }
-        GameObject hintArea = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(840f, 42f), new Color(1f, 0.94f, 0.75f), true, false);
-        controlsHint = UIKit.Label(hintArea.transform, "Space ve fare yumrugu birlikte kullanilabilir.", 16, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        GameObject hintArea = UIKit.Panel(keyboardControlsPage.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(840f, 42f), new Color(1f, 0.94f, 0.7f), true, false);
+        controlsHint = UIKit.Label(hintArea.transform, "Space ve fare yumrugu birlikte kullanilabilir.", 17, new Color(0.2f, 0.15f, 0.08f), TextAnchor.MiddleCenter);
 
-        mouseControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.5f), true, false);
-        GameObject mouseInfo = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(840f, 74f), new Color(1f, 0.94f, 0.8f), true, false);
-        UIKit.Label(mouseInfo.transform, "Sol ve sag tik atamalarini istedigin zaman yer degistirebilirsin.", 18, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        mouseControlsPage = UIKit.Panel(box.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(900f, 470f), new Color(1f, 1f, 1f, 0.62f), true, false);
+        GameObject mouseInfo = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(840f, 74f), new Color(1f, 0.92f, 0.7f), true, false);
+        UIKit.Label(mouseInfo.transform, "Sol ve sag tik atamalarini istedigin zaman yer degistirebilirsin.", 19, new Color(0.2f, 0.15f, 0.08f), TextAnchor.MiddleCenter);
+
         GameObject moveRow = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 85f), new Vector2(780f, 90f), Color.white, true, true);
-        mouseMoveText = UIKit.Label(moveRow.transform, "", 20, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        GameObject moveLabel = UIKit.Panel(moveRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-185f, 0f), new Vector2(340f, 66f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(moveLabel.transform, "HAREKET / YONLENDIRME\nTepeden gorunumde git", 18, new Color(0.16f, 0.12f, 0.09f), TextAnchor.MiddleLeft);
+        GameObject moveBinding = UIKit.Panel(moveRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(190f, 0f), new Vector2(300f, 54f), UIKit.Blue, true, true);
+        mouseMoveText = UIKit.Label(moveBinding.transform, "", 18, Color.white, TextAnchor.MiddleCenter);
+
         GameObject punchRow = UIKit.Panel(mouseControlsPage.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(780f, 90f), Color.white, true, true);
-        mousePunchText = UIKit.Label(punchRow.transform, "", 20, UIKit.TextDark, TextAnchor.MiddleCenter, true);
+        GameObject punchLabel = UIKit.Panel(punchRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-185f, 0f), new Vector2(340f, 66f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        UIKit.Label(punchLabel.transform, "YUMRUK\nMusteri veya hirsiza vur", 18, new Color(0.16f, 0.12f, 0.09f), TextAnchor.MiddleLeft);
+        GameObject punchBinding = UIKit.Panel(punchRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(190f, 0f), new Vector2(300f, 54f), UIKit.Orange, true, true);
+        mousePunchText = UIKit.Label(punchBinding.transform, "", 18, Color.white, TextAnchor.MiddleCenter);
+
         UIKit.Btn(mouseControlsPage.transform, new Vector2(0f, -150f), new Vector2(420f, 60f), UIKit.Orange, "SOL / SAG TIK YER DEGISTIR", 18,
             delegate { ControlBindings.SwapMouseButtons(); RefreshControlLabels(); });
 
@@ -733,6 +899,18 @@ public class UIManager : MonoBehaviour
     {
         if (keyboardControlsPage != null) keyboardControlsPage.SetActive(keyboard);
         if (mouseControlsPage != null) mouseControlsPage.SetActive(!keyboard);
+        if (keyboardControlsTab != null)
+        {
+            keyboardControlsTab.image.color = keyboard ? UIKit.Blue : new Color(0.68f, 0.7f, 0.74f);
+            keyboardControlsTab.GetComponentInChildren<Text>().text = keyboard ? "KLAVYE  -  SECILI" : "KLAVYE";
+        }
+        if (mouseControlsTab != null)
+        {
+            mouseControlsTab.image.color = !keyboard ? UIKit.Orange : new Color(0.68f, 0.7f, 0.74f);
+            mouseControlsTab.GetComponentInChildren<Text>().text = !keyboard ? "FARE  -  SECILI" : "FARE";
+        }
+        if (keyboardTabMarker != null) keyboardTabMarker.SetActive(keyboard);
+        if (mouseTabMarker != null) mouseTabMarker.SetActive(!keyboard);
         pendingBinding = -1;
         RefreshControlLabels();
     }
@@ -754,8 +932,8 @@ public class UIManager : MonoBehaviour
         }
         if (controlsHint != null && pendingBinding < 0)
             controlsHint.text = "Space ve fare yumrugu birlikte kullanilabilir. Ok yonleri her zaman aktiftir.";
-        if (mouseMoveText != null) mouseMoveText.text = ControlBindings.MouseName(ControlBindings.MoveMouseButton) + " BASILI TUT: Tepeden gorunumde git / yonlendir";
-        if (mousePunchText != null) mousePunchText.text = ControlBindings.MouseName(ControlBindings.PunchMouseButton) + ": Yumruk at";
+        if (mouseMoveText != null) mouseMoveText.text = ControlBindings.MouseName(ControlBindings.MoveMouseButton) + "  -  BASILI TUT";
+        if (mousePunchText != null) mousePunchText.text = ControlBindings.MouseName(ControlBindings.PunchMouseButton) + "  -  YUMRUK";
         if (cameraTutorialText != null) cameraTutorialText.text = CameraTutorialLabel();
     }
 
@@ -861,13 +1039,30 @@ public class UIManager : MonoBehaviour
         if (trashTutorialGo == null) return;
         bool tutorialDone = PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1;
         int held = Game.player != null ? Game.player.HeldTrashCount : 0;
-        int remaining = Game.trash != null ? Game.trash.Count : 0;
-        bool show = !tutorialDone && Game.player != null && Game.trash != null && (remaining > 0 || held > 0);
+        // No carried trash means no destination guide. After the first dump the
+        // saved tutorial flag keeps this hidden forever.
+        bool show = !tutorialDone && Game.player != null && Game.trash != null && held > 0;
         trashTutorialGo.SetActive(show);
         if (!show) return;
 
-        bool goToBin = held >= 5 || (remaining == 0 && held > 0);
-        trashTutorialText.text = goToBin ? "COP KUTUSUNA GOTUR  " + held + "/5" : "COPLERI TOPLA  " + held + "/5";
+        float distance = Vector3.Distance(Game.player.transform.position, Game.trash.BinPos);
+        trashTutorialText.text = "COP KUTUSU  •  " + Mathf.CeilToInt(distance) + "m  •  " + held + "/5";
+
+        Vector2 screenDirection = Vector2.up;
+        if (Camera.main != null)
+        {
+            Vector3 viewport = Camera.main.WorldToViewportPoint(Game.trash.BinPos + Vector3.up * 1.5f);
+            Vector2 fromCenter = new Vector2(viewport.x - 0.5f, viewport.y - 0.5f);
+            if (viewport.z < 0f) fromCenter = -fromCenter;
+            if (fromCenter.sqrMagnitude < 0.001f) fromCenter = Vector2.up;
+            screenDirection = fromCenter.normalized;
+            float edgeScale = Mathf.Min(510f / Mathf.Max(0.01f, Mathf.Abs(screenDirection.x)),
+                275f / Mathf.Max(0.01f, Mathf.Abs(screenDirection.y)));
+            trashTutorialRect.anchoredPosition = screenDirection * edgeScale;
+        }
+        else trashTutorialRect.anchoredPosition = new Vector2(0f, 250f);
+        if (trashTutorialArrow != null)
+            trashTutorialArrow.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(screenDirection.y, screenDirection.x) * Mathf.Rad2Deg);
         if (trashTutorialDot != null)
         {
             Image dot = trashTutorialDot.GetComponent<Image>();
@@ -936,16 +1131,32 @@ public class UIManager : MonoBehaviour
         }
         else satText.color = UIKit.TextDark;
 
-        clockText.text = Game.gm.ClockText() + (Game.gm.shopOpen ? " ACIK" : " KAPALI");
+        clockText.text = Game.gm.ClockText();
+        if (seaDirtRoot != null) seaDirtRoot.SetActive(Game.gm.Level >= 8);
+        if (beachDirtRoot != null) beachDirtRoot.SetActive(Game.gm.Level >= 15);
         if (capacityText != null && Game.player != null)
             capacityText.text = Game.player.CarryCount + "/" + Game.gm.Capacity;
 
-        // pollution %: shop litter + sea slicks
+        // Separate pollution meters keep shop, sea and beach consequences clear.
         if (dirtText != null && Game.trash != null)
         {
-            int dirt = Mathf.Clamp(Game.trash.Count * 8 + Game.trash.SeaCount * 5, 0, 100);
+            int dirt = Mathf.Clamp(Game.trash.ShopCount * 10, 0, 100);
             dirtText.text = "%" + dirt;
             dirtText.color = dirt < 30 ? UIKit.TextDark : dirt < 60 ? UIKit.Orange : UIKit.Red;
+
+            int seaDirt = Mathf.Clamp(Game.trash.SeaCount * 6, 0, 100);
+            if (seaDirtText != null)
+            {
+                seaDirtText.text = "%" + seaDirt;
+                seaDirtText.color = seaDirt < 30 ? UIKit.TextDark : seaDirt < 60 ? UIKit.Orange : UIKit.Red;
+            }
+
+            int beachDirt = Mathf.Clamp(Game.trash.BeachCount * 8, 0, 100);
+            if (beachDirtText != null)
+            {
+                beachDirtText.text = "%" + beachDirt;
+                beachDirtText.color = beachDirt < 30 ? UIKit.TextDark : beachDirt < 60 ? UIKit.Orange : UIKit.Red;
+            }
         }
 
         if (toastTimer > 0f)
@@ -961,7 +1172,37 @@ public class UIManager : MonoBehaviour
         }
 
         UpdateTrashTutorialIndicator();
+        UpdateEndDayDeskGuide();
         UpdateHint();
+    }
+
+    void UpdateEndDayDeskGuide()
+    {
+        if (endDayGuideGo == null) return;
+        bool active = PlayerPrefs.GetInt("AT3_EndDayDeskGuideActive", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_EndDayDeskGuideDone", 0) == 0 &&
+            Game.player != null && Game.managerDesk != null;
+        endDayGuideGo.SetActive(active);
+        if (!active) return;
+
+        Vector3 target = Game.managerDesk.InteractionSpot;
+        float distance = Vector3.Distance(Game.player.transform.position, target);
+        endDayGuideText.text = "GUNU BITIRMEK ICIN YONETIM MASANA GIT  •  " + Mathf.CeilToInt(distance) + "m";
+
+        Vector2 direction = Vector2.up;
+        if (Camera.main != null)
+        {
+            Vector3 viewport = Camera.main.WorldToViewportPoint(target + Vector3.up * 1.4f);
+            direction = new Vector2(viewport.x - 0.5f, viewport.y - 0.5f);
+            if (viewport.z < 0f) direction = -direction;
+            if (direction.sqrMagnitude < 0.001f) direction = Vector2.up;
+            direction.Normalize();
+            float edgeScale = Mathf.Min(470f / Mathf.Max(0.01f, Mathf.Abs(direction.x)),
+                245f / Mathf.Max(0.01f, Mathf.Abs(direction.y)));
+            endDayGuideRect.anchoredPosition = direction * edgeScale;
+        }
+        if (endDayGuideArrow != null)
+            endDayGuideArrow.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
     }
 
     void UpdateTechWidgets()

@@ -17,6 +17,7 @@ public class PlayerController : MonoBehaviour
     float depositTimer;
     bool wasSwimming;
     float attackCooldown;
+    bool deskSeated;
 
     // radar
     Fish target;
@@ -37,6 +38,27 @@ public class PlayerController : MonoBehaviour
     public int CarryCount { get { return carried.Count; } }
     public int HeldTrashCount { get { return heldTrash.Count; } }
     public bool IsFull { get { return carried.Count >= Game.gm.Capacity; } }
+
+    public void SitAtDesk(Vector3 seatPosition, Quaternion deskRotation)
+    {
+        deskSeated = true;
+        if (cc != null) cc.enabled = false;
+        transform.position = seatPosition;
+        transform.rotation = deskRotation;
+        if (visual != null)
+        {
+            visual.localPosition = new Vector3(0f, -0.42f, 0f);
+            visual.localRotation = Quaternion.identity;
+        }
+    }
+
+    public void LeaveDesk()
+    {
+        if (!deskSeated) return;
+        deskSeated = false;
+        if (visual != null) visual.localPosition = Vector3.zero;
+        if (cc != null) cc.enabled = true;
+    }
 
     public static PlayerController Create(Vector3 pos)
     {
@@ -178,6 +200,14 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        if (deskSeated)
+        {
+            // The management UI owns input while seated; do not feed gravity
+            // or movement into the temporarily disabled controller.
+            UpdateCarryText();
+            return;
+        }
+
         Swimming = Game.sea != null && Game.sea.Contains(transform.position);
 
         // entering the sea after midnight = shark-infested waters!
@@ -227,17 +257,29 @@ public class PlayerController : MonoBehaviour
         bool punchPressed = Input.GetMouseButtonDown(ControlBindings.PunchMouseButton) || ControlBindings.Down(ControlAction.Punch);
         if (attackCooldown > 0f || !punchPressed ||
             (Game.ui != null && Game.ui.AnyMenuOpen)) return;
-        attackCooldown = 0.48f;
+        attackCooldown = Game.gm != null && Game.gm.activePlayerWeapon == 2 ? 0.62f : 0.48f;
         StartCoroutine(PunchVisual());
 
         Vector3 facing = visual != null ? visual.forward : transform.forward;
         facing.y = 0f;
-        float best = 2.8f;
+        if (facing.sqrMagnitude < 0.01f) facing = transform.forward;
+        facing.Normalize();
+
+        // A selected gun never auto-locks to a nearby target. Every press fires
+        // a real projectile exactly where the player is looking, with full
+        // friendly-fire consequences for customers and the player's own tanks.
+        if (Game.gm != null && Game.gm.activePlayerWeapon == 2)
+        {
+            PlayerBullet.Spawn(transform.position + Vector3.up * 1.3f + facing * 0.75f, facing);
+            return;
+        }
+        float best = Game.gm != null ? Game.gm.PlayerWeaponRange : 2.8f;
         Thief hitThief = null;
         Customer hitCustomer = null;
         Thief[] thieves = FindObjectsByType<Thief>(FindObjectsSortMode.None);
         for (int i = 0; i < thieves.Length; i++)
         {
+            if (!thieves[i].IsRevealed) continue;
             Vector3 to = thieves[i].transform.position - transform.position; to.y = 0f;
             float d = to.magnitude;
             if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
@@ -252,20 +294,25 @@ public class PlayerController : MonoBehaviour
             { best = d; hitCustomer = customers[i]; hitThief = null; }
         }
 
-        if (hitThief != null) hitThief.PlayerHit(transform.position);
+        if (hitThief != null) hitThief.PlayerHit(transform.position, Game.gm != null ? Game.gm.PlayerWeaponDamage : 1);
         else if (hitCustomer != null) hitCustomer.HitByPlayer(transform.position);
         else Sfx.Play(Snd.Throw, 0.28f);
     }
 
     System.Collections.IEnumerator PunchVisual()
     {
-        GameObject fist = B.Prim(PrimitiveType.Sphere, "Punch", visual, new Vector3(0.45f, 1.3f, 0.35f), Vector3.zero,
-            Vector3.one * 0.34f, MatLib.Get(new Color(1f, 0.72f, 0.55f)));
+        int weapon = Game.gm != null ? Game.gm.activePlayerWeapon : -1;
+        PrimitiveType primitive = weapon < 0 ? PrimitiveType.Sphere : PrimitiveType.Cube;
+        Vector3 scale = weapon < 0 ? Vector3.one * 0.34f : weapon == 0 ? new Vector3(0.16f, 0.16f, 1.15f) : weapon == 1 ? new Vector3(0.12f, 0.08f, 0.82f) : new Vector3(0.28f, 0.22f, 0.72f);
+        Color color = weapon < 0 ? new Color(1f, 0.72f, 0.55f) : weapon == 0 ? new Color(0.42f, 0.24f, 0.1f) : weapon == 1 ? new Color(0.82f, 0.9f, 0.96f) : new Color(0.12f, 0.14f, 0.18f);
+        GameObject fist = B.Prim(primitive, weapon < 0 ? "Punch" : "EquippedWeapon", visual, new Vector3(0.45f, 1.3f, 0.35f), Vector3.zero, scale, MatLib.Get(color));
         float t = 0f;
         while (t < 1f && fist != null)
         {
-            t += Time.deltaTime * 7f;
-            fist.transform.localPosition = new Vector3(0.45f, 1.3f, Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * 1.15f);
+            t += Time.deltaTime * (weapon == 2 ? 10f : 7f);
+            float reach = weapon == 2 ? 1.6f : 1.15f;
+            fist.transform.localPosition = new Vector3(0.45f, 1.3f, 0.35f + Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * reach);
+            if (weapon == 0 || weapon == 1) fist.transform.localRotation = Quaternion.Euler(Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * 55f, 0f, 0f);
             yield return null;
         }
         if (fist != null) Destroy(fist);
@@ -277,12 +324,22 @@ public class PlayerController : MonoBehaviour
         if (Game.ui == null) return;
         string prompt = null;
 
+        if (Game.managerDesk != null && Game.managerDesk.PlayerNear &&
+            PlayerPrefs.GetInt("AT3_EndDayDeskGuideActive", 0) == 1)
+            Game.ui.CompleteEndDayDeskGuide();
+
         bool menuOpen = Game.ui.AnyMenuOpen;
         if (!menuOpen)
         {
             string interactKey = ControlBindings.KeyName(ControlAction.Interact);
-            if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
+            if (Game.generator != null && Game.generator.CanUse && Game.generator.PlayerNear(transform.position))
+                prompt = interactKey + " : Jeneratoru calistir";
+            else if (Game.ramp != null && Game.ramp.Broken && Game.ramp.PlayerNear(transform.position))
+                prompt = interactKey + " : Rampayi tamir et  $" + B.Money(Game.ramp.RepairCost);
+            else if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
                 prompt = interactKey + " : Jetski tamir et  $" + B.Money(Game.jetski.RepairCost);
+            else if (Game.cameraDesk != null && Game.cameraDesk.PlayerNear(transform.position))
+                prompt = interactKey + " : Guvenlik kameralarini izle";
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
                 prompt = interactKey + " : Yonetim PC'sini Ac";
             else if (Game.register != null && Game.register.PlayerAtSpot)
@@ -294,13 +351,27 @@ public class PlayerController : MonoBehaviour
 
         if (prompt != null && ControlBindings.Down(ControlAction.Interact))
         {
-            if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
+            if (Game.generator != null && Game.generator.CanUse && Game.generator.PlayerNear(transform.position))
+            {
+                Game.generator.StartByPlayer();
+            }
+            else if (Game.ramp != null && Game.ramp.Broken && Game.ramp.PlayerNear(transform.position))
+            {
+                if (!Game.ramp.TryRepair()) Game.ui.Toast("Rampa tamiri icin yeterli paran yok.");
+            }
+            else if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
             {
                 Game.jetski.TryRepair();
+            }
+            else if (Game.cameraDesk != null && Game.cameraDesk.PlayerNear(transform.position))
+            {
+                Game.ui.SetPrompt(null);
+                Game.cameraDesk.OpenViewer();
             }
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
             {
                 Game.ui.SetPrompt(null);
+                Game.managerDesk.SeatPlayer();
                 Game.cam.ZoomToPC(delegate { Game.pc.Open(); });
             }
             else if (Game.register != null && Game.register.PlayerAtSpot)
@@ -543,31 +614,122 @@ public class PlayerController : MonoBehaviour
     void StartTrashGuideIfNeeded()
     {
         if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1) return;
-        if (trashGuideArrow == null)
-        {
-            trashGuideArrow = new GameObject("TrashBinGuide");
-            TrashBinGuideArrow guide = trashGuideArrow.AddComponent<TrashBinGuideArrow>();
-            guide.player = transform;
-        }
+        // Direction is now communicated solely by the screen-edge HUD guide.
+        // Remove a world arrow left alive by an in-Editor script reload.
+        if (trashGuideArrow != null) { Destroy(trashGuideArrow); trashGuideArrow = null; }
     }
 
     void UpdateTrashGuide()
     {
-        if (trashGuideArrow == null || Game.trash == null) return;
-        bool show = heldTrash.Count > 0 && PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 0;
-        trashGuideArrow.SetActive(show);
+        if (Game.trash == null) return;
+        if (trashGuideArrow != null) { Destroy(trashGuideArrow); trashGuideArrow = null; }
     }
 
     void CompleteTrashGuide()
     {
-        if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 1) return;
-        // The camera lesson belongs after the whole starter cleanup, not after
-        // merely touching the first poop (the player can spawn close to one).
-        if (Game.trash != null && Game.trash.Count > 0) return;
-        PlayerPrefs.SetInt("AT3_BinTutorialDone", 1);
+        // The bin guide is learned after the FIRST successful dump and must
+        // never appear again on this save.
+        if (PlayerPrefs.GetInt("AT3_BinTutorialDone", 0) == 0)
+        {
+            PlayerPrefs.SetInt("AT3_BinTutorialDone", 1);
+            if (trashGuideArrow != null) Destroy(trashGuideArrow);
+        }
+
+        // Camera controls remain a separate lesson: show them only after every
+        // piece of the starter cleanup has been collected and dumped.
+        if (Game.trash != null && Game.trash.Count == 0 &&
+            PlayerPrefs.GetInt("AT3_StarterCleanupDone", 0) == 0)
+        {
+            PlayerPrefs.SetInt("AT3_StarterCleanupDone", 1);
+            if (Game.ui != null) Game.ui.ShowCameraTutorial();
+        }
         PlayerPrefs.Save();
-        if (trashGuideArrow != null) Destroy(trashGuideArrow);
-        if (Game.ui != null) Game.ui.ShowCameraTutorial();
+    }
+}
+
+public class PlayerBullet : MonoBehaviour
+{
+    Vector3 velocity;
+    float life = 3.5f;
+
+    public static void Spawn(Vector3 from, Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
+        direction.Normalize();
+        GameObject go = B.Prim(PrimitiveType.Sphere, "PlayerBullet", null, from, Vector3.zero, Vector3.one * 0.2f,
+            MatLib.Get(new Color(1f, 0.82f, 0.16f)));
+        PlayerBullet bullet = go.AddComponent<PlayerBullet>();
+        bullet.velocity = direction * 25f;
+        Sfx.Play(Snd.Alarm, 0.32f);
+    }
+
+    void Update()
+    {
+        if (Game.gm == null) { Destroy(gameObject); return; }
+        float dt = Time.deltaTime;
+        Vector3 next = transform.position + velocity * dt;
+
+        Thief[] thieves = FindObjectsByType<Thief>(FindObjectsSortMode.None);
+        for (int i = 0; i < thieves.Length; i++)
+        {
+            if (thieves[i] != null && thieves[i].IsRevealed && DistanceToSegment(thieves[i].transform.position + Vector3.up, transform.position, next) < 0.9f)
+            {
+                thieves[i].PlayerHit(transform.position - velocity.normalized, Game.gm.PlayerWeaponDamage);
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+        for (int i = 0; i < customers.Length; i++)
+        {
+            if (customers[i] != null && !customers[i].IsDead && DistanceToSegment(customers[i].transform.position + Vector3.up, transform.position, next) < 0.85f)
+            {
+                customers[i].HitByPlayer(transform.position - velocity.normalized);
+                if (Game.ui != null) Game.ui.Toast("Yanlislikla musteriye ates ettin! 1 yildizli yorum birakti.", 4f);
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        for (int i = 0; i < Game.tanks.Count; i++)
+        {
+            Tank tank = Game.tanks[i];
+            if (tank != null && !tank.broken && DistanceToSegment(tank.transform.position + Vector3.up * 1.2f, transform.position, next) < 2.05f)
+            {
+                tank.Break(); // the player's own bullet breaks it immediately
+                if (Game.ui != null) Game.ui.Toast("Kendi akvaryumunu vurdun! Akvaryum kirildi.", 4f);
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        RaycastHit hit;
+        if (Physics.Linecast(transform.position, next, out hit))
+        {
+            Tank tank = hit.collider != null ? hit.collider.GetComponentInParent<Tank>() : null;
+            if (tank != null && !tank.broken)
+            {
+                tank.Break();
+                if (Game.ui != null) Game.ui.Toast("Kendi akvaryumunu vurdun! Akvaryum kirildi.", 4f);
+            }
+            Destroy(gameObject);
+            return;
+        }
+
+        transform.position = next;
+        life -= dt;
+        if (life <= 0f) Destroy(gameObject);
+    }
+
+    static float DistanceToSegment(Vector3 point, Vector3 a, Vector3 b)
+    {
+        Vector3 ab = b - a;
+        float denominator = ab.sqrMagnitude;
+        if (denominator < 0.0001f) return Vector3.Distance(point, a);
+        float t = Mathf.Clamp01(Vector3.Dot(point - a, ab) / denominator);
+        return Vector3.Distance(point, a + ab * t);
     }
 }
 
@@ -579,29 +741,21 @@ public class TrashBinGuideArrow : MonoBehaviour
 
     void Start()
     {
-        RuntimeAssetCatalog catalog = GameAssets.Catalog;
-        if (catalog != null && catalog.arrowPrefab != null)
-        {
-            GameObject model = Instantiate(catalog.arrowPrefab, transform, false);
-            model.name = "SyntyArrow";
-            model.transform.localScale = Vector3.one * 1.15f;
-            model.transform.localEulerAngles = new Vector3(0f, 0f, 0f);
-            AssetLib.FixMaterials(model);
-            arrowVisual = model.transform;
-        }
-        else
-        {
-            arrowVisual = new GameObject("ArrowVisual").transform;
-            arrowVisual.SetParent(transform, false);
-            Material green = MatLib.Get(new Color(0.28f, 1f, 0.35f));
-            B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
-                new Vector3(0.18f, 0.14f, 1.1f), green);
-            B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.28f, 0f, 0.92f), new Vector3(0f, 45f, 0f),
-                new Vector3(0.17f, 0.14f, 0.65f), green);
-            B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.28f, 0f, 0.92f), new Vector3(0f, -45f, 0f),
-                new Vector3(0.17f, 0.14f, 0.65f), green);
-        }
-        label = B.Text3D("", transform, new Vector3(0f, 0.85f, 0f), 0.095f, new Color(0.9f, 1f, 0.45f));
+        // A guaranteed high-contrast arrow. The former catalog prefab had an
+        // incompatible pivot/orientation and could be invisible from top-down.
+        arrowVisual = new GameObject("ArrowVisual").transform;
+        arrowVisual.SetParent(transform, false);
+        Material yellow = MatLib.Get(new Color(1f, 0.78f, 0.08f));
+        Material dark = MatLib.Get(new Color(0.12f, 0.2f, 0.16f));
+        B.Prim(PrimitiveType.Cube, "ArrowShadow", arrowVisual, new Vector3(0f, -0.09f, 0.45f), Vector3.zero,
+            new Vector3(0.34f, 0.09f, 1.5f), dark);
+        B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
+            new Vector3(0.28f, 0.18f, 1.35f), yellow);
+        B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.38f, 0f, 1.08f), new Vector3(0f, 45f, 0f),
+            new Vector3(0.27f, 0.18f, 0.85f), yellow);
+        B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.38f, 0f, 1.08f), new Vector3(0f, -45f, 0f),
+            new Vector3(0.27f, 0.18f, 0.85f), yellow);
+        label = B.Text3D("", transform, new Vector3(0f, 1.05f, 0f), 0.115f, Color.white);
     }
 
     void Update()
@@ -611,11 +765,113 @@ public class TrashBinGuideArrow : MonoBehaviour
         to.y = 0f;
         Vector3 dir = to.sqrMagnitude > 0.01f ? to.normalized : Vector3.forward;
         float travel = Mathf.PingPong(Time.time * 1.8f, 0.8f);
-        transform.position = player.position + Vector3.up * (3.2f + Mathf.Sin(Time.time * 4f) * 0.18f) + dir * travel;
+        transform.position = player.position + Vector3.up * (4.1f + Mathf.Sin(Time.time * 4f) * 0.22f) + dir * travel;
         transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
         if (arrowVisual != null)
-            arrowVisual.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 6f) * 0.12f);
+            arrowVisual.localScale = Vector3.one * (1.25f + Mathf.Sin(Time.time * 6f) * 0.16f);
         if (label != null) label.text = Loc.T("TRASH_BIN") + "  " + Mathf.CeilToInt(to.magnitude) + "m";
+    }
+}
+
+// Purchased technology: exists only while the event's golden fish is still
+// swimming free, so the screen cleans itself up as soon as it is caught/lost.
+public class GoldenFishGuideArrow : MonoBehaviour
+{
+    Fish target;
+    Transform arrowVisual;
+    TextMesh label;
+
+    public static void Create(Fish fish)
+    {
+        if (fish == null || Game.player == null) return;
+        GoldenFishGuideArrow old = FindFirstObjectByType<GoldenFishGuideArrow>();
+        if (old != null) Destroy(old.gameObject);
+        GameObject go = new GameObject("GoldenFishGuideArrow");
+        GoldenFishGuideArrow guide = go.AddComponent<GoldenFishGuideArrow>();
+        guide.target = fish;
+    }
+
+    void Start()
+    {
+        arrowVisual = new GameObject("ArrowVisual").transform;
+        arrowVisual.SetParent(transform, false);
+        Material gold = MatLib.Get(new Color(1f, 0.68f, 0.03f));
+        Material glow = MatLib.Get(new Color(1f, 0.95f, 0.25f));
+        B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
+            new Vector3(0.3f, 0.2f, 1.4f), gold);
+        B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.4f, 0f, 1.1f), new Vector3(0f, 45f, 0f),
+            new Vector3(0.3f, 0.2f, 0.9f), glow);
+        B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.4f, 0f, 1.1f), new Vector3(0f, -45f, 0f),
+            new Vector3(0.3f, 0.2f, 0.9f), glow);
+        label = B.Text3D("", transform, new Vector3(0f, 1.05f, 0f), 0.115f, new Color(1f, 0.9f, 0.2f));
+        label.fontStyle = FontStyle.Bold;
+    }
+
+    void Update()
+    {
+        if (Game.player == null || target == null || !target.golden || target.state != Fish.State.Wild)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Vector3 to = target.transform.position - Game.player.transform.position;
+        to.y = 0f;
+        Vector3 dir = to.sqrMagnitude > 0.01f ? to.normalized : Vector3.forward;
+        float travel = Mathf.PingPong(Time.time * 2.1f, 0.9f);
+        transform.position = Game.player.transform.position + Vector3.up * (4.2f + Mathf.Sin(Time.time * 4.5f) * 0.25f) + dir * travel;
+        transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+        if (arrowVisual != null) arrowVisual.localScale = Vector3.one * (1.2f + Mathf.Sin(Time.time * 7f) * 0.15f);
+        if (label != null) label.text = "ALTIN BALIK  " + Mathf.CeilToInt(to.magnitude) + "m";
+    }
+}
+
+// One-time onboarding after the player's first five sales.
+public class SecondTankGuideArrow : MonoBehaviour
+{
+    Transform arrowVisual;
+    TextMesh label;
+
+    public static void Create()
+    {
+        if (Game.gm == null || Game.player == null || Game.gm.unlockedCount >= 2) return;
+        if (FindFirstObjectByType<SecondTankGuideArrow>() != null) return;
+        new GameObject("SecondTankGuideArrow").AddComponent<SecondTankGuideArrow>();
+    }
+
+    void Start()
+    {
+        arrowVisual = new GameObject("ArrowVisual").transform;
+        arrowVisual.SetParent(transform, false);
+        Material blue = MatLib.Get(new Color(0.15f, 0.65f, 1f));
+        B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
+            new Vector3(0.3f, 0.2f, 1.4f), blue);
+        B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.4f, 0f, 1.1f), new Vector3(0f, 45f, 0f),
+            new Vector3(0.3f, 0.2f, 0.9f), blue);
+        B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.4f, 0f, 1.1f), new Vector3(0f, -45f, 0f),
+            new Vector3(0.3f, 0.2f, 0.9f), blue);
+        label = B.Text3D("", transform, new Vector3(0f, 1.05f, 0f), 0.105f, Color.white);
+        label.fontStyle = FontStyle.Bold;
+    }
+
+    void Update()
+    {
+        if (Game.gm == null || Game.player == null || Game.gm.unlockedCount >= 2)
+        {
+            PlayerPrefs.SetInt("AT3_SecondTankGuideDone", 1);
+            PlayerPrefs.Save();
+            Destroy(gameObject);
+            return;
+        }
+        BuyZone plot = BuyZone.FindPlot(1);
+        if (plot == null) return;
+        Vector3 to = plot.transform.position - Game.player.transform.position;
+        to.y = 0f;
+        Vector3 dir = to.sqrMagnitude > 0.01f ? to.normalized : Vector3.forward;
+        float travel = Mathf.PingPong(Time.time * 1.8f, 0.8f);
+        transform.position = Game.player.transform.position + Vector3.up * (4.15f + Mathf.Sin(Time.time * 4f) * 0.22f) + dir * travel;
+        transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+        if (arrowVisual != null) arrowVisual.localScale = Vector3.one * (1.2f + Mathf.Sin(Time.time * 6f) * 0.14f);
+        if (label != null) label.text = "2. AKVARYUMU AC  " + Mathf.CeilToInt(to.magnitude) + "m";
     }
 }
 

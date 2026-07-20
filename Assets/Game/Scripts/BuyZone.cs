@@ -4,6 +4,7 @@ using UnityEngine;
 public class BuyZone : MonoBehaviour
 {
     public int cost;
+    public int plotSpecies = -1;
 
     int paid;
     float payCarry;
@@ -29,6 +30,7 @@ public class BuyZone : MonoBehaviour
             },
             delegate { Game.gm.UnlockNext(); });
         z.hideUntilPrereq = true;
+        z.plotSpecies = sp;
         Material pad = MatLib.Get(new Color(0.72f, 0.58f, 0.42f));
         Material shadow = MatLib.Get(new Color(0.35f, 0.28f, 0.2f));
         Material corner = MatLib.Get(Color.white);
@@ -67,8 +69,18 @@ public class BuyZone : MonoBehaviour
         B.Prim(PrimitiveType.Cylinder, "Base", z.root.transform, new Vector3(0f, 0.03f, 0f), Vector3.zero, new Vector3(3f, 0.03f, 3f), MatLib.Get(dim));
         GameObject fill = B.Prim(PrimitiveType.Cylinder, "Fill", z.root.transform, new Vector3(0f, 0.07f, 0f), Vector3.zero, new Vector3(0.01f, 0.03f, 0.01f), MatLib.Get(color));
         z.fillDisc = fill.transform;
-        B.Text3D(label, z.root.transform, new Vector3(0f, 2.6f, 0f), 0.1f, Color.white);
+        z.text.transform.localPosition = new Vector3(0f, 2.25f, 0f);
+        z.text.characterSize = 0.15f;
+        TextMesh title = B.Text3D(label, z.root.transform, new Vector3(0f, 3.35f, 0f), 0.15f, new Color(1f, 0.95f, 0.55f));
+        title.fontStyle = FontStyle.Bold;
         return z;
+    }
+
+    public static BuyZone FindPlot(int species)
+    {
+        BuyZone[] zones = FindObjectsByType<BuyZone>(FindObjectsSortMode.None);
+        for (int i = 0; i < zones.Length; i++) if (zones[i].plotSpecies == species) return zones[i];
+        return null;
     }
 
     static BuyZone CreateBase(string name, int cost, Vector3 pos, System.Func<bool> prereq, System.Action onBought)

@@ -79,7 +79,7 @@ public class Sea : MonoBehaviour
         fishes.Add(f);
     }
 
-    public void SpawnGolden()
+    public Fish SpawnGolden()
     {
         Vector3 pos = new Vector3(area.xMin + 8f, 0.43f, Random.Range(area.yMin + 10f, area.yMax - 10f));
         Fish f = Fish.Create(Mathf.Max(0, Game.gm.unlockedCount - 1), pos);
@@ -87,6 +87,7 @@ public class Sea : MonoBehaviour
         f.MakeGolden();
         fishes.Add(f);
         Destroy(f.gameObject, 25f); // disappears if not caught
+        return f;
     }
 
     // after midnight (00:00 - 05:00) the sea turns deadly: only sharks, they attack
