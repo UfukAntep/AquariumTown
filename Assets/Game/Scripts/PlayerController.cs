@@ -323,6 +323,12 @@ public class PlayerController : MonoBehaviour
     System.Collections.IEnumerator PunchVisual()
     {
         int weapon = Game.gm != null ? Game.gm.activePlayerWeapon : -1;
+        if (Game.cam != null && Game.cam.IsFPS)
+        {
+            yield return StartCoroutine(FPSAttackVisual(weapon));
+            yield break;
+        }
+
         PrimitiveType primitive = weapon < 0 ? PrimitiveType.Sphere : PrimitiveType.Cube;
         Vector3 scale = weapon < 0 ? Vector3.one * 0.34f : weapon == 0 ? new Vector3(0.16f, 0.16f, 1.15f) : weapon == 1 ? new Vector3(0.12f, 0.08f, 0.82f) : new Vector3(0.28f, 0.22f, 0.72f);
         Color color = weapon < 0 ? new Color(1f, 0.72f, 0.55f) : weapon == 0 ? new Color(0.42f, 0.24f, 0.1f) : weapon == 1 ? new Color(0.82f, 0.9f, 0.96f) : new Color(0.12f, 0.14f, 0.18f);
@@ -337,6 +343,66 @@ public class PlayerController : MonoBehaviour
             yield return null;
         }
         if (fist != null) Destroy(fist);
+    }
+
+    System.Collections.IEnumerator FPSAttackVisual(int weapon)
+    {
+        // This view model exists only for the brief FPS attack animation. The
+        // normal player visual and every non-FPS animation remain untouched.
+        GameObject root = new GameObject("FPSAttackVisual");
+        root.transform.SetParent(Game.cam.transform, false);
+        Vector3 rest = new Vector3(0.38f, -0.32f, 0.72f);
+        root.transform.localPosition = rest;
+
+        Material skin = MatLib.Get(new Color(1f, 0.72f, 0.55f));
+        Material wood = MatLib.Get(new Color(0.42f, 0.24f, 0.1f));
+        Material metal = MatLib.Get(new Color(0.82f, 0.9f, 0.96f));
+        Material dark = MatLib.Get(new Color(0.12f, 0.14f, 0.18f));
+        if (weapon < 0)
+        {
+            B.Prim(PrimitiveType.Sphere, "FPSFist", root.transform, Vector3.zero, Vector3.zero,
+                new Vector3(0.3f, 0.26f, 0.38f), skin);
+        }
+        else if (weapon == 0)
+        {
+            B.Prim(PrimitiveType.Cube, "FPSBaton", root.transform, new Vector3(0f, 0f, 0.25f), Vector3.zero,
+                new Vector3(0.13f, 0.13f, 0.95f), wood);
+        }
+        else if (weapon == 1)
+        {
+            B.Prim(PrimitiveType.Cube, "FPSKnifeHandle", root.transform, new Vector3(0f, 0f, -0.12f), Vector3.zero,
+                new Vector3(0.14f, 0.11f, 0.3f), dark);
+            B.Prim(PrimitiveType.Cube, "FPSKnifeBlade", root.transform, new Vector3(0f, 0f, 0.3f), Vector3.zero,
+                new Vector3(0.1f, 0.045f, 0.58f), metal);
+        }
+        else
+        {
+            B.Prim(PrimitiveType.Cube, "FPSGunBody", root.transform, Vector3.zero, Vector3.zero,
+                new Vector3(0.27f, 0.2f, 0.52f), dark);
+            B.Prim(PrimitiveType.Cube, "FPSGunBarrel", root.transform, new Vector3(0f, 0.02f, 0.38f), Vector3.zero,
+                new Vector3(0.12f, 0.12f, 0.34f), dark);
+            B.Prim(PrimitiveType.Cube, "FPSGunGrip", root.transform, new Vector3(0f, -0.18f, -0.08f), new Vector3(18f, 0f, 0f),
+                new Vector3(0.17f, 0.3f, 0.16f), wood);
+        }
+
+        float t = 0f;
+        while (t < 1f && root != null)
+        {
+            t += Time.deltaTime * (weapon == 2 ? 10f : 7f);
+            float pulse = Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI);
+            if (weapon == 2)
+            {
+                root.transform.localPosition = rest + new Vector3(0f, 0.025f * pulse, -0.13f * pulse);
+                root.transform.localRotation = Quaternion.Euler(-7f * pulse, 0f, 0f);
+            }
+            else
+            {
+                root.transform.localPosition = rest + Vector3.forward * (weapon < 0 ? 0.48f : 0.3f) * pulse;
+                root.transform.localRotation = Quaternion.Euler(-28f * pulse, 0f, -18f * pulse);
+            }
+            yield return null;
+        }
+        if (root != null) Destroy(root);
     }
 
     // ---------- E interactions + prompt ----------
