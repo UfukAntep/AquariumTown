@@ -9,12 +9,16 @@ public class Sea : MonoBehaviour
 
     List<Fish> fishes = new List<Fish>();
     float respawnTimer;
-    const int MaxPopulation = 150; // about 15% denser than the previous sea
-    const int PerSpecies = 3; // per-species cap so ALL 80 species share the sea
+    const int MaxPopulation = 180; // 20% denser sea population
 
-    // Three of every seven species may have one extra individual. Across the
-    // full roster this is a ~14% increase without letting one species dominate.
-    static int SpeciesCap(int sp) { return PerSpecies + (sp % 7 < 3 ? 1 : 0); }
+    // At low levels only a few species are eligible. A fixed per-species cap
+    // used to stop the sea at roughly 25 fish even though the global target is
+    // 180. Share the target across the currently available species instead.
+    int SpeciesCap(int sp)
+    {
+        int availableSpecies = Mathf.Max(1, MaxSpecies + 1);
+        return Mathf.CeilToInt(MaxPopulation / (float)availableSpecies) + (sp % 5 == 0 ? 1 : 0);
+    }
 
     public static Sea Create(Rect area, Transform parent)
     {
@@ -25,7 +29,7 @@ public class Sea : MonoBehaviour
         Game.sea = s;
         // life EVERYWHERE: every species lives in the sea from the start,
         // rare (high level) ones live farther from the shore
-        for (int i = 0; i < 110; i++) s.SpawnOne();
+        for (int i = 0; i < 132; i++) s.SpawnOne();
         return s;
     }
 
@@ -63,7 +67,7 @@ public class Sea : MonoBehaviour
         int[] counts = new int[SpeciesInfo.Count];
         for (int i = 0; i < fishes.Count; i++) counts[fishes[i].species]++;
         int max = MaxSpecies;
-        for (int attempt = 0; attempt < 8; attempt++)
+        for (int attempt = 0; attempt < 20; attempt++)
         {
             int sp = Random.Range(0, max + 1);
             if (counts[sp] < SpeciesCap(sp)) { Spawn(sp); return; }
@@ -135,7 +139,7 @@ public class Sea : MonoBehaviour
         respawnTimer -= Time.deltaTime;
         if (respawnTimer <= 0f)
         {
-            respawnTimer = 1.1f;
+            respawnTimer = 0.9f;
             if (fishes.Count < MaxPopulation) SpawnOne();
         }
     }

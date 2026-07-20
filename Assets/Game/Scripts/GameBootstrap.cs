@@ -15,6 +15,7 @@ public class GameBootstrap : MonoBehaviour
     static TextMesh gateNameText;
     // Keep the manual open/close sign inside the starting shop boundary.
     static readonly Vector3 GateSignPos = new Vector3(6.5f, 0f, 28.5f);
+    public static Vector3 GateSignPosition { get { return GateSignPos; } }
     static Bounds displayBounds = new Bounds(new Vector3(-25f, 1.9f, 187.5f), new Vector3(58f, 1.4f, 3.5f));
     static List<Fish> displayFish = new List<Fish>();
 
@@ -295,7 +296,7 @@ public class GameBootstrap : MonoBehaviour
         BuildZones();
         if (PlayerPrefs.GetInt("AT3_SecondTankTutorialShown", 0) == 1 &&
             PlayerPrefs.GetInt("AT3_SecondTankGuideDone", 0) == 0 && gm.unlockedCount < 2)
-            SecondTankGuideArrow.Create();
+            Game.ui.BeginSecondTankGuide();
 
         if (gm.LoadHasDepot())
         {
@@ -315,7 +316,8 @@ public class GameBootstrap : MonoBehaviour
 
         for (int role = 0; role < StaffInfo.RoleCount; role++)
             for (int n = 0; n < gm.staffCounts[role]; n++)
-                Staff.Create(role, Customer.DoorPos + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f)));
+                Staff.Create(role, Customer.DoorPos + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f)),
+                    n < gm.staffHiredToday[role]);
         LoadingScreen.Report(0.87f, "Personel ise geliyor...");
         yield return null;
 
@@ -333,6 +335,9 @@ public class GameBootstrap : MonoBehaviour
         rig.target = Game.player.transform;
 
         UpdateGateBarrier();
+        if (!gm.shopOpen && PlayerPrefs.GetInt("AT3_FirstTankShopGuideShown", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_FirstTankShopGuideDone", 0) == 0)
+            Game.ui.BeginShopGateGuide();
 
         int offline = gm.ComputeOfflineEarnings();
         if (offline > 0)
@@ -364,11 +369,18 @@ public class GameBootstrap : MonoBehaviour
             };
             for (int i = 0; i < starterPoop.Length; i++)
                 Game.trash.SpawnLandTrash(starterPoop[i], true);
-            Game.ui.ShowInfo("DUKKANINA HOS GELDIN!",
-                "Saat daha 05:00 ve dukkanin su an KAPALI.\n" +
-                "Once yerdeki copleri toplayip disaridaki kutuya at,\n" +
-                "sonra hemen denize kos ve radarla balik yakala!\n" +
-                "Hazir olunca kapidaki tabeladan dukkani ac.");
+            Game.ui.ShowInfo("KLAVYE VE FARE DESTEGI",
+                "Oyunu hem KLAVYE hem de FARE ile oynayabilirsin.\n\n" +
+                "Klavye: WASD veya ok tuslariyla hareket et.\n" +
+                "Fare: Sol tusa basili tutarak git.",
+                delegate
+                {
+                    Game.ui.ShowInfo("DUKKANINI HAZIRLA!",
+                        "Dukkanin su an KAPALI.\n" +
+                        "Once yerdeki copleri toplayip disaridaki kutuya at,\n" +
+                        "sonra denize kos ve radarla balik yakala!\n\n" +
+                        "Hazir olunca kapidaki tabeladan dukkani ac.");
+                });
         }
         LoadingScreen.Report(1f, "Hazir! Akvaryum kasabana hos geldin.");
         yield return null;
@@ -467,7 +479,9 @@ public class GameBootstrap : MonoBehaviour
             B.Text3D("$" + B.Money(cost) + "   (Sv " + req + ")", ov.transform, new Vector3(-30f, 1.5f, zc), 0.15f, new Color(1f, 0.9f, 0.35f));
 
             GameObject overlay = ov;
-            BuyZone.CreateGeneric("YENI ALAN", cost, new Vector3(-6f, 0f, z0 + 2.5f), new Color(0.95f, 0.8f, 0.25f),
+            // Keep the purchase pad on the player's side of the divider so the
+            // player never has to enter the locked area to unlock it.
+            BuyZone.CreateGeneric("YENI ALAN", cost, new Vector3(-6f, 0f, z0 - 2.5f), new Color(0.95f, 0.8f, 0.25f),
                 delegate () { return Game.gm.ZoneOpen(zone - 1) && Game.gm.Level >= req; },
                 delegate
                 {
@@ -802,7 +816,10 @@ public class GameBootstrap : MonoBehaviour
         Material weed = MatLib.Get(new Color(0.3f, 0.7f, 0.5f));
         Material star = MatLib.Get(new Color(0.55f, 0.6f, 0.9f));
         Material rock = MatLib.Get(new Color(0.55f, 0.58f, 0.62f));
-        for (int i = 0; i < 30; i++)
+        // The sea is intentionally huge; a few dozen props left broad empty
+        // blue patches. A light-weight spread of seabed details keeps every
+        // camera-sized area visually alive without obscuring the fish.
+        for (int i = 0; i < 110; i++)
         {
             Vector3 p = new Vector3(Random.Range(SeaRect.xMin + 3f, SeaRect.xMax - 3f), 0.1f, Random.Range(SeaRect.yMin + 3f, SeaRect.yMax - 3f));
             if (i % 3 == 0)

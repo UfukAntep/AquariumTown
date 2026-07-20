@@ -58,8 +58,11 @@ public class Fish : MonoBehaviour
                 badge = new GameObject("Badge");
                 badge.transform.SetParent(transform, false);
                 badge.transform.localPosition = new Vector3(0f, 1.6f, 0f);
-                B.Prim(PrimitiveType.Sphere, "Bg", badge.transform, Vector3.zero, Vector3.zero, new Vector3(1.3f, 0.75f, 0.15f), MatLib.Get(Color.white));
-                B.Text3D("Sv " + reqLevel + "\ngerekli", badge.transform, new Vector3(0f, 0f, -0.12f), 0.07f, new Color(0.95f, 0.5f, 0.1f), false);
+                B.Prim(PrimitiveType.Sphere, "Bg", badge.transform, Vector3.zero, Vector3.zero,
+                    new Vector3(1.65f, 0.95f, 0.15f), MatLib.Get(Color.white));
+                TextMesh badgeText = B.Text3D("Sv " + reqLevel + "\ngerekli", badge.transform,
+                    new Vector3(0f, 0f, -0.12f), 0.052f, new Color(0.95f, 0.5f, 0.1f), false);
+                badgeText.lineSpacing = 0.78f;
                 badge.AddComponent<Billboard>();
             }
             badge.SetActive(true);

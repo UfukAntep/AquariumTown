@@ -869,6 +869,12 @@ public class Shark : MonoBehaviour
         GameObject v = new GameObject("Visual");
         v.transform.SetParent(transform, false);
         visual = v.transform;
+        GameObject sharkModel = AssetLib.SpawnShark(visual, 4.8f);
+        if (sharkModel != null)
+        {
+            Destroy(gameObject, 14f);
+            return;
+        }
         Material gray = MatLib.Get(new Color(0.35f, 0.4f, 0.48f));
         Material white = MatLib.Get(new Color(0.9f, 0.9f, 0.9f));
         B.Prim(PrimitiveType.Sphere, "Body", visual, Vector3.zero, Vector3.zero, new Vector3(1.4f, 1.1f, 3.6f), gray);

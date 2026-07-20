@@ -18,6 +18,8 @@ public class PlayerController : MonoBehaviour
     bool wasSwimming;
     float attackCooldown;
     bool deskSeated;
+    float deskInteractionBlockedUntil;
+    bool dumpingTrash;
 
     // radar
     Fish target;
@@ -38,9 +40,11 @@ public class PlayerController : MonoBehaviour
     public int CarryCount { get { return carried.Count; } }
     public int HeldTrashCount { get { return heldTrash.Count; } }
     public bool IsFull { get { return carried.Count >= Game.gm.Capacity; } }
+    public bool CanUseDeskInteraction { get { return !deskSeated && Time.unscaledTime >= deskInteractionBlockedUntil; } }
 
     public void SitAtDesk(Vector3 seatPosition, Quaternion deskRotation)
     {
+        if (!CanUseDeskInteraction) return;
         deskSeated = true;
         if (cc != null) cc.enabled = false;
         transform.position = seatPosition;
@@ -54,10 +58,25 @@ public class PlayerController : MonoBehaviour
 
     public void LeaveDesk()
     {
-        if (!deskSeated) return;
         deskSeated = false;
-        if (visual != null) visual.localPosition = Vector3.zero;
+        deskInteractionBlockedUntil = Time.unscaledTime + 0.35f;
+        if (visual != null)
+        {
+            visual.localPosition = Vector3.zero;
+            visual.localRotation = Quaternion.identity;
+        }
         if (cc != null) cc.enabled = true;
+    }
+
+    public void StandAtRegister(Vector3 operatorPosition, Vector3 registerPosition)
+    {
+        if (cc != null) cc.enabled = false;
+        transform.position = operatorPosition;
+        if (cc != null) cc.enabled = true;
+        Vector3 face = registerPosition - operatorPosition;
+        face.y = 0f;
+        if (face.sqrMagnitude > 0.01f && visual != null)
+            visual.rotation = Quaternion.LookRotation(face.normalized, Vector3.up);
     }
 
     public static PlayerController Create(Vector3 pos)
@@ -231,6 +250,8 @@ public class PlayerController : MonoBehaviour
         if (Game.cam != null && Game.cam.IsTPS)
             dir = Quaternion.Euler(0f, Game.cam.TPSYaw, 0f) * dir; // camera-relative TPS controls
         float speed = Swimming ? (jetski != null ? Game.gm.MoveSpeed * Game.gm.JetskiSpeedMultiplier : Game.gm.SwimSpeed) : Game.gm.MoveSpeed;
+        if (!Swimming && Game.gm.SprintUnlocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+            speed *= Game.gm.SprintMultiplier;
         cc.Move((dir * speed + Vector3.down * 15f) * dt);
 
         if (dir.sqrMagnitude > 0.01f)
@@ -342,7 +363,7 @@ public class PlayerController : MonoBehaviour
                 prompt = interactKey + " : Guvenlik kameralarini izle";
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
                 prompt = interactKey + " : Yonetim PC'sini Ac";
-            else if (Game.register != null && Game.register.PlayerAtSpot)
+            else if (Game.register != null && Game.register.PlayerNear(transform.position))
                 prompt = interactKey + " : Odeme noktasinda bekle";
             else if (GameBootstrap.NearGateSign(transform.position))
                 prompt = Game.gm.shopOpen ? interactKey + " : Dukkani KAPAT" : interactKey + " : Dukkani AC";
@@ -371,13 +392,15 @@ public class PlayerController : MonoBehaviour
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
             {
                 Game.ui.SetPrompt(null);
+                Game.ui.CompleteEndDayDeskGuide();
                 Game.managerDesk.SeatPlayer();
                 Game.cam.ZoomToPC(delegate { Game.pc.Open(); });
             }
-            else if (Game.register != null && Game.register.PlayerAtSpot)
+            else if (Game.register != null && Game.register.PlayerNear(transform.position))
             {
+                StandAtRegister(Game.register.OperatorSpot, Game.register.transform.position);
                 if (Game.register.QueueCount == 0)
-                    Game.ui.Toast("Bekleyen musteri yok.", 3f);
+                    Game.ui.Toast("Bekleyen musteri yok; kasada bekliyorsun.", 3f);
                 else
                     Game.ui.Toast("Odeme aliniyor; kasada bekle.", 3f);
             }
@@ -585,7 +608,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Game.trash == null) return;
 
-        if (heldTrash.Count < TrashCarryLimit)
+        if (!dumpingTrash && heldTrash.Count < TrashCarryLimit)
         {
             TrashItem t = Game.trash.FindNear(transform.position, 1.5f, Swimming);
             if (t != null)
@@ -598,17 +621,30 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (heldTrash.Count > 0 && Vector3.Distance(transform.position, Game.trash.BinPos) < 2.4f)
+        if (!dumpingTrash && heldTrash.Count > 0 && Vector3.Distance(transform.position, Game.trash.BinPos) < 2.4f)
         {
-            QuestSystem.OnTrash(heldTrash.Count);
-            for (int i = 0; i < heldTrash.Count; i++)
-                if (heldTrash[i] != null) heldTrash[i].DumpInto(Game.trash.BinPos);
-            heldTrash.Clear();
-            Sfx.Play(Snd.TrashDump, 0.65f);
-            CompleteTrashGuide();
+            StartCoroutine(DumpTrashOneByOne());
         }
 
         UpdateTrashGuide();
+    }
+
+    System.Collections.IEnumerator DumpTrashOneByOne()
+    {
+        dumpingTrash = true;
+        int count = heldTrash.Count;
+        QuestSystem.OnTrash(count);
+        while (heldTrash.Count > 0)
+        {
+            int index = heldTrash.Count - 1;
+            TrashItem item = heldTrash[index];
+            heldTrash.RemoveAt(index);
+            if (item != null) item.DumpInto(Game.trash.BinPos);
+            Sfx.Play(Snd.TrashDump, 0.42f);
+            yield return new WaitForSeconds(0.16f);
+        }
+        dumpingTrash = false;
+        CompleteTrashGuide();
     }
 
     void StartTrashGuideIfNeeded()
@@ -822,56 +858,6 @@ public class GoldenFishGuideArrow : MonoBehaviour
         transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
         if (arrowVisual != null) arrowVisual.localScale = Vector3.one * (1.2f + Mathf.Sin(Time.time * 7f) * 0.15f);
         if (label != null) label.text = "ALTIN BALIK  " + Mathf.CeilToInt(to.magnitude) + "m";
-    }
-}
-
-// One-time onboarding after the player's first five sales.
-public class SecondTankGuideArrow : MonoBehaviour
-{
-    Transform arrowVisual;
-    TextMesh label;
-
-    public static void Create()
-    {
-        if (Game.gm == null || Game.player == null || Game.gm.unlockedCount >= 2) return;
-        if (FindFirstObjectByType<SecondTankGuideArrow>() != null) return;
-        new GameObject("SecondTankGuideArrow").AddComponent<SecondTankGuideArrow>();
-    }
-
-    void Start()
-    {
-        arrowVisual = new GameObject("ArrowVisual").transform;
-        arrowVisual.SetParent(transform, false);
-        Material blue = MatLib.Get(new Color(0.15f, 0.65f, 1f));
-        B.Prim(PrimitiveType.Cube, "Shaft", arrowVisual, new Vector3(0f, 0f, 0.4f), Vector3.zero,
-            new Vector3(0.3f, 0.2f, 1.4f), blue);
-        B.Prim(PrimitiveType.Cube, "HeadL", arrowVisual, new Vector3(0.4f, 0f, 1.1f), new Vector3(0f, 45f, 0f),
-            new Vector3(0.3f, 0.2f, 0.9f), blue);
-        B.Prim(PrimitiveType.Cube, "HeadR", arrowVisual, new Vector3(-0.4f, 0f, 1.1f), new Vector3(0f, -45f, 0f),
-            new Vector3(0.3f, 0.2f, 0.9f), blue);
-        label = B.Text3D("", transform, new Vector3(0f, 1.05f, 0f), 0.105f, Color.white);
-        label.fontStyle = FontStyle.Bold;
-    }
-
-    void Update()
-    {
-        if (Game.gm == null || Game.player == null || Game.gm.unlockedCount >= 2)
-        {
-            PlayerPrefs.SetInt("AT3_SecondTankGuideDone", 1);
-            PlayerPrefs.Save();
-            Destroy(gameObject);
-            return;
-        }
-        BuyZone plot = BuyZone.FindPlot(1);
-        if (plot == null) return;
-        Vector3 to = plot.transform.position - Game.player.transform.position;
-        to.y = 0f;
-        Vector3 dir = to.sqrMagnitude > 0.01f ? to.normalized : Vector3.forward;
-        float travel = Mathf.PingPong(Time.time * 1.8f, 0.8f);
-        transform.position = Game.player.transform.position + Vector3.up * (4.15f + Mathf.Sin(Time.time * 4f) * 0.22f) + dir * travel;
-        transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-        if (arrowVisual != null) arrowVisual.localScale = Vector3.one * (1.2f + Mathf.Sin(Time.time * 6f) * 0.14f);
-        if (label != null) label.text = "2. AKVARYUMU AC  " + Mathf.CeilToInt(to.magnitude) + "m";
     }
 }
 

@@ -100,7 +100,7 @@ public class TrophySystem : MonoBehaviour
         int index = pending.Dequeue();
         TrophyDefinition trophy = All[index];
         Sfx.Play(Snd.LevelUp, 1f);
-        Game.ui.ShowInfo("KUPA KAZANDIN!", "★ " + trophy.title + " ★\n\n" + trophy.description +
+        Game.ui.ShowInfo("KUPA KAZANDIN!", "★  " + trophy.title + "  ★\n\n" + trophy.description +
             "\n\nTum kupalarina Yonetim Paneli > Kupalar bolumunden ulasabilirsin.");
     }
 }

@@ -209,6 +209,21 @@ public static class AssetLib
         return SpawnSeaAnimal(Random.Range(0, seaAnimals.Count), parent, targetSize);
     }
 
+    public static GameObject SpawnShark(Transform parent, float targetSize)
+    {
+        RuntimeAssetCatalog catalog = GameAssets.Catalog;
+        if (catalog == null || catalog.sharkPrefab == null) return null;
+        GameObject go = Object.Instantiate(catalog.sharkPrefab, parent, false);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localRotation = Quaternion.identity;
+        FixMaterials(go);
+        FixSeaAnimalMaterials(go);
+        StripColliders(go);
+        NormalizeSize(go, targetSize);
+        go.AddComponent<QuirkyMotion>();
+        return go;
+    }
+
     // Cash bill from the safe pack, laid flat and normalized to bill size.
     public static GameObject SpawnMoneyBill(Transform parent)
     {
@@ -217,7 +232,9 @@ public static class AssetLib
         GameObject go = Object.Instantiate(cashPrefab, parent, false);
         FixMaterials(go);
         StripColliders(go);
-        NormalizeSize(go, 0.95f);
+        // A predictable footprint lets CashRegister place every $1 bill in a
+        // clean touching grid instead of having imported meshes overlap.
+        NormalizeSize(go, 0.68f);
         return go;
     }
 

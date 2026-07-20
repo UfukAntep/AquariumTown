@@ -30,9 +30,9 @@ public class Depot : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "Post1", transform, new Vector3(-2.5f, 1.2f, -2f), Vector3.zero, new Vector3(0.3f, 2.4f, 0.3f), woodD);
         B.Prim(PrimitiveType.Cube, "Post2", transform, new Vector3(2.5f, 1.2f, -2f), Vector3.zero, new Vector3(0.3f, 2.4f, 0.3f), woodD);
         B.Prim(PrimitiveType.Cube, "Roof", transform, new Vector3(0f, 2.5f, -1f), new Vector3(12f, 0f, 0f), new Vector3(5.8f, 0.2f, 3.2f), MatLib.Get(new Color(0.3f, 0.65f, 0.85f)));
-        TextMesh depotTitle = B.Text3D("DEPO", transform, new Vector3(0f, 4.05f, 0f), 0.2f, new Color(1f, 0.92f, 0.3f));
+        TextMesh depotTitle = B.Text3D("DEPO", transform, new Vector3(0f, 4.15f, 0f), 0.18f, new Color(1f, 0.92f, 0.3f));
         depotTitle.fontStyle = FontStyle.Bold;
-        text = B.Text3D("", transform, new Vector3(0f, 3.25f, 0f), 0.14f, Color.white);
+        text = B.Text3D("", transform, new Vector3(0f, 3.25f, 0f), 0.125f, Color.white);
 
         GameObject cr = new GameObject("Crates");
         cr.transform.SetParent(transform, false);

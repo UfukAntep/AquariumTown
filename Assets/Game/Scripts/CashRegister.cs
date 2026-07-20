@@ -13,9 +13,15 @@ public class CashRegister : MonoBehaviour
     bool playerAtSpot;
     bool billRoutineRunning;
 
-    public Vector3 OperatorSpot { get { return transform.position + new Vector3(0f, 0f, 2f); } }
-    public bool HasOperator { get { return CashierPresent || playerAtSpot; } }
+    public Vector3 OperatorSpot { get { return transform.position + new Vector3(0f, 0f, 1.35f); } }
+    public bool HasOperator { get { return playerAtSpot || (CashierPresent && Game.gm != null && Game.gm.StaffOnShift); } }
     public bool PlayerAtSpot { get { return playerAtSpot; } }
+    public bool PlayerNear(Vector3 position)
+    {
+        position.y = 0f;
+        Vector3 center = transform.position; center.y = 0f;
+        return Vector3.Distance(position, center) < 4.2f;
+    }
 
     public static CashRegister Create(Vector3 pos, Transform parent)
     {
@@ -81,12 +87,17 @@ public class CashRegister : MonoBehaviour
 
     Vector3 BillSlot(int idx)
     {
-        // Every object is exactly $1. A wider grid keeps large payments tidy.
-        int perLayer = 80;
+        // Every object is exactly $1. Twenty-five bills form one completely
+        // filled 5x5 tray; following bills continue on a flush upper layer.
+        const int columns = 5;
+        const int rows = 5;
+        int perLayer = columns * rows;
         int layer = idx / perLayer;
         int inLayer = idx % perLayer;
-        int col = inLayer % 10, row = inLayer / 10;
-        return new Vector3(col * 0.38f - 1.71f, 0.05f + layer * 0.08f, row * 0.52f - 1.82f);
+        int col = inLayer % columns, row = inLayer / columns;
+        return new Vector3((col - (columns - 1) * 0.5f) * 0.7f,
+            0.05f + layer * 0.065f,
+            (row - (rows - 1) * 0.5f) * 0.34f);
     }
 
     System.Collections.IEnumerator TickBills()
@@ -103,12 +114,12 @@ public class CashRegister : MonoBehaviour
             if (b != null)
             {
                 b.transform.localPosition = slot + Vector3.up * 1.5f;
-                b.transform.localEulerAngles = new Vector3(0f, Random.Range(-4f, 4f), 0f);
+                b.transform.localEulerAngles = Vector3.zero;
             }
             else
             {
                 b = B.Prim(PrimitiveType.Cube, "Bill", pileRoot, slot + Vector3.up * 1.5f,
-                    new Vector3(0f, Random.Range(-4f, 4f), 0f), new Vector3(0.58f, 0.06f, 0.94f),
+                    Vector3.zero, new Vector3(0.58f, 0.06f, 0.32f),
                     (idx % 2 == 0) ? green : greenD);
             }
             bills.Add(b);
@@ -150,7 +161,7 @@ public class CashRegister : MonoBehaviour
     void Update()
     {
         if (Game.player == null) return;
-        playerAtSpot = Vector3.Distance(Game.player.transform.position, OperatorSpot) < 2.2f;
+        playerAtSpot = Vector3.Distance(Game.player.transform.position, OperatorSpot) < 0.75f;
 
         if (needText != null)
             needText.text = (queue.Count > 0 && !HasOperator) ? "Kasaya birisi lazim!" : "";
@@ -175,7 +186,11 @@ public class ManagerDesk : MonoBehaviour
     public bool PlayerNear
     {
         // Approach from any side; using the PC snaps the player into the chair.
-        get { return Game.player != null && Vector3.Distance(Game.player.transform.position, transform.position) < 3.4f; }
+        get
+        {
+            return Game.player != null && Game.player.CanUseDeskInteraction &&
+                Vector3.Distance(Game.player.transform.position, transform.position) < 3.4f;
+        }
     }
 
     public static ManagerDesk Create(Vector3 pos, Transform parent)

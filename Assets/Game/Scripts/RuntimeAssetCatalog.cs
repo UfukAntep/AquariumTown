@@ -19,6 +19,7 @@ public class RuntimeAssetCatalog : ScriptableObject
     public Sprite knifeIcon;
     public Sprite gunIcon;
     public GameObject[] fishPrefabs;
+    public GameObject sharkPrefab;
     public Material skyMaterial;
     public GameObject arrowPrefab;
 }
@@ -104,7 +105,9 @@ static class FishPortraitCache
             model = fallback.gameObject;
         }
         SetLayer(model.transform, portraitLayer);
-        model.transform.rotation = Quaternion.Euler(12f, 145f, 0f);
+        // Most source fish point along local Z. Rotating 90 degrees and using
+        // a straight-on camera gives the readable side profile used in cards.
+        model.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
         Bounds bounds = new Bounds(Vector3.zero, Vector3.one);
         Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
@@ -120,10 +123,10 @@ static class FishPortraitCache
         camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
         camera.cullingMask = 1 << portraitLayer;
         camera.orthographic = true;
-        camera.orthographicSize = Mathf.Max(bounds.extents.x, bounds.extents.y, bounds.extents.z) * 1.35f;
+        camera.orthographicSize = Mathf.Max(bounds.extents.y, bounds.extents.x * 0.75f) * 1.25f;
         camera.nearClipPlane = 0.01f;
         camera.farClipPlane = 20f;
-        camera.transform.position = bounds.center + new Vector3(3f, 1.6f, -4f);
+        camera.transform.position = bounds.center + new Vector3(0f, 0.05f, -6f);
         camera.transform.LookAt(bounds.center);
 
         GameObject lightGo = new GameObject("FishPortraitLight");
@@ -133,14 +136,14 @@ static class FishPortraitCache
         light.cullingMask = 1 << portraitLayer;
         light.transform.rotation = Quaternion.Euler(35f, -35f, 0f);
 
-        RenderTexture rt = new RenderTexture(256, 192, 24, RenderTextureFormat.ARGB32);
-        rt.antiAliasing = 2;
+        RenderTexture rt = new RenderTexture(512, 384, 24, RenderTextureFormat.ARGB32);
+        rt.antiAliasing = 4;
         camera.targetTexture = rt;
         RenderTexture previous = RenderTexture.active;
         camera.Render();
         RenderTexture.active = rt;
-        Texture2D texture = new Texture2D(256, 192, TextureFormat.RGBA32, false);
-        texture.ReadPixels(new Rect(0, 0, 256, 192), 0, 0);
+        Texture2D texture = new Texture2D(512, 384, TextureFormat.RGBA32, false);
+        texture.ReadPixels(new Rect(0, 0, 512, 384), 0, 0);
         texture.Apply();
         texture.name = "FishPortrait_" + species;
         texture.filterMode = FilterMode.Bilinear;

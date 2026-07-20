@@ -18,9 +18,9 @@ public static class UIKit
     public static readonly Color TextDark = new Color(0.32f, 0.2f, 0.1f);
     public static readonly Color PanelShade = new Color(0f, 0f, 0f, 0.25f);
 
-    static Sprite rounded, circle, star, poop, trophy;
+    static Sprite rounded, circle, star, poop, trophy, baton;
 
-    public static void Clear() { rounded = null; circle = null; star = null; poop = null; trophy = null; }
+    public static void Clear() { rounded = null; circle = null; star = null; poop = null; trophy = null; baton = null; }
 
     public static Sprite Rounded()
     {
@@ -60,6 +60,31 @@ public static class UIKit
         tex.Apply();
         circle = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
         return circle;
+    }
+
+    // Unambiguous wooden baton icon (the imported "Bat" pictogram can read
+    // as the animal at small sizes).
+    public static Sprite Baton()
+    {
+        if (baton != null) return baton;
+        const int n = 128;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        Vector2 a = new Vector2(32f, 24f), b = new Vector2(92f, 104f);
+        Vector2 ab = b - a;
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                Vector2 p = new Vector2(x, y);
+                float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+                float distance = Vector2.Distance(p, a + ab * t);
+                float radius = Mathf.Lerp(9f, 16f, t);
+                float alpha = Mathf.Clamp01(radius - distance + 0.8f);
+                Color wood = Color.Lerp(new Color(0.38f, 0.18f, 0.06f), new Color(0.72f, 0.42f, 0.14f), t);
+                tex.SetPixel(x, y, new Color(wood.r, wood.g, wood.b, alpha));
+            }
+        tex.Apply();
+        baton = Sprite.Create(tex, new Rect(0f, 0f, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return baton;
     }
 
     public static Sprite Star()
@@ -195,7 +220,8 @@ public static class UIKit
         {
             Outline o = go.AddComponent<Outline>();
             o.effectColor = new Color(0f, 0f, 0f, 0.35f);
-            o.effectDistance = new Vector2(1.5f, -1.5f);
+            // Whole-pixel offsets stay crisp under the reference-resolution scaler.
+            o.effectDistance = new Vector2(1f, -1f);
         }
         return t;
     }

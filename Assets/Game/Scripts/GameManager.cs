@@ -10,6 +10,8 @@ public class GameManager : MonoBehaviour
     public int unlockedCount = 1;             // species 0..unlockedCount-1 are unlocked; Level == unlockedCount
     public int[] staffCounts = new int[StaffInfo.RoleCount];
     public int[] staffLevel = new int[StaffInfo.RoleCount];
+    // New hires have already paid today's salary up-front.
+    public int[] staffHiredToday = new int[StaffInfo.RoleCount];
     public int[] shopUpg = new int[6]; // strengthening, alarm, hygiene, efficiency, management room, camera desk
     public int[] tankLevel = new int[SpeciesInfo.Count];
     public bool[] decorOwned = new bool[DecorInfo.Count];
@@ -68,7 +70,7 @@ public class GameManager : MonoBehaviour
     bool bankruptcyTriggered;
 
     public int Level { get { return unlockedCount; } }
-    public int Capacity { get { return 6 + upg[(int)Upg.Capacity] * 3; } }
+    public int Capacity { get { return 5 + upg[(int)Upg.Capacity] * 3; } }
     public float MoveSpeed { get { return 6.5f * Mathf.Pow(1.08f, upg[(int)Upg.MoveSpeed]); } }
     public float SwimSpeed { get { return 4.5f * Mathf.Pow(1.10f, upg[(int)Upg.SwimSpeed]); } }
     public float CatchTimeMult { get { return Mathf.Pow(0.88f, upg[(int)Upg.RadarSpeed]); } }
@@ -76,6 +78,8 @@ public class GameManager : MonoBehaviour
     public float TipChance { get { return 0.06f * upg[(int)Upg.TipChance]; } }
     public float CustSpeedMult { get { return Mathf.Pow(1.10f, upg[(int)Upg.CustSpeed]); } }
     public float ExtraCashMult { get { return 1f + 0.10f * upg[(int)Upg.ExtraCash]; } }
+    public bool SprintUnlocked { get { return upg[(int)Upg.Sprint] > 0; } }
+    public float SprintMultiplier { get { return SprintUnlocked ? 1.45f + 0.12f * (upg[(int)Upg.Sprint] - 1) : 1f; } }
     public float SaleFactor { get { return Mathf.Lerp(0.4f, 1f, Satisfaction / 100f); } }
     public float PoopChanceMult
     {
@@ -97,6 +101,10 @@ public class GameManager : MonoBehaviour
     public bool TryBuyOrEquipWeapon(bool security, int weapon)
     {
         if (weapon < 0 || weapon >= 3) return false;
+        // Security equipment only has meaning after at least one guard is
+        // hired. Keep this rule in the game model as well as the UI so it
+        // cannot be bypassed by another caller or a stale button state.
+        if (security && (staffCounts == null || staffCounts.Length <= 6 || staffCounts[6] <= 0)) return false;
         bool[] owned = security ? securityWeaponsOwned : playerWeaponsOwned;
         if (!owned[weapon])
         {
@@ -119,6 +127,13 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < tankLevel.Length; i++) tankLevel[i] = 1;
         for (int i = 0; i < staffLevel.Length; i++) staffLevel[i] = 1;
         Load();
+        // Retire older day-end guide state before the one-time first-night lesson.
+        if (PlayerPrefs.GetInt(P + "NightGuideV3Migrated", 0) == 0)
+        {
+            PlayerPrefs.SetInt(P + "EndDayDeskGuideActive", 0);
+            PlayerPrefs.SetInt(P + "NightGuideV3Migrated", 1);
+            PlayerPrefs.Save();
+        }
         // The starter species is available from the first minute of every save,
         // so its database entry must never appear locked.
         discovered[0] = true;
@@ -212,7 +227,7 @@ public class GameManager : MonoBehaviour
         Game.ui.ShowPausedInfo("YENI AKVARYUM ZAMANI!",
             "Ilk 5 balik satisini tamamladin!\n\n" +
             "Simdi ikinci balik turunun akvaryum alanini acabilirsin. Isareti takip edip alanin uzerinde dur.",
-            delegate { SecondTankGuideArrow.Create(); });
+            delegate { Game.ui.BeginSecondTankGuide(); });
     }
 
     public void RegisterCustomerArrival()
@@ -277,7 +292,7 @@ public class GameManager : MonoBehaviour
     {
         if (salariesPaid) return 0;
         salariesPaid = true;
-        int wage = TotalDailySalary() + ToiletDaily();
+        int wage = SalaryDueAtDayEnd() + ToiletDaily();
         if (wage > 0)
         {
             // Wages are contractual: the full amount is recorded and may put
@@ -305,6 +320,9 @@ public class GameManager : MonoBehaviour
         dayCustomers = 0; dayFishSold = 0; dayIncome = 0; dayExpense = 0;
         dayReviewCount = 0; dayStarSum = 0;
         salariesPaid = false;
+        for (int i = 0; i < staffHiredToday.Length; i++) staffHiredToday[i] = 0;
+        for (int i = 0; i < Game.staff.Count; i++)
+            if (Game.staff[i] != null) Game.staff[i].hiredToday = false;
         clockMinutes = 6f * 60f; // day always resumes at 06:00
         shopOpen = false;
         GameBootstrap.UpdateGateBarrier();
@@ -457,33 +475,67 @@ public class GameManager : MonoBehaviour
         return t;
     }
 
+    public int SalaryDueAtDayEnd()
+    {
+        int total = 0;
+        for (int role = 0; role < StaffInfo.RoleCount; role++)
+        {
+            int prepaid = role < staffHiredToday.Length ? staffHiredToday[role] : 0;
+            total += Mathf.Max(0, staffCounts[role] - prepaid) * StaffSalary(role);
+        }
+        return total;
+    }
+
     public bool TryHireStaff(int role)
     {
+        if (role < 0 || role >= StaffInfo.RoleCount) return false;
         if (staffCounts[role] >= StaffInfo.MaxCount[role]) return false;
         if (role == 2 && !HasDepot()) return false;
         if (role == 5 && toiletCount == 0) return false;
         if (role == 8 && generatorLevel <= 0) return false;
-        // no upfront cost — you just commit to paying the daily salary at day-end
+        int todaySalary = StaffSalary(role);
+        if (!TrySpend(todaySalary))
+        {
+            if (Game.ui != null) Game.ui.Toast("Bugunun maasi icin yeterli paran yok: $" + B.Money(todaySalary));
+            return false;
+        }
+        bool firstEmployee = TotalStaffCount() == 0;
         staffCounts[role]++;
-        Staff.Create(role, Customer.DoorPos);
+        staffHiredToday[role]++;
+        Staff.Create(role, Customer.DoorPos, true);
         Sfx.Play(Snd.Buy);
+        if (firstEmployee && PlayerPrefs.GetInt(P + "FirstStaffHireInfoV3", 0) == 0)
+        {
+            PlayerPrefs.SetInt(P + "FirstStaffHireInfoV3", 1);
+            PlayerPrefs.Save();
+            if (Game.ui != null) Game.ui.ShowPausedInfo("CALISAN VARDIYASI",
+                "Calisanlar her sabah 08:00'de ise gelir ve aksam 20:00'de evlerine gider.\n\n" +
+                "Ise alirken bugunun maasi hemen odenir; sonraki maaslar gun sonunda kesilir.");
+        }
+        Save();
         return true;
     }
 
     public bool TryFireStaff(int role)
     {
         if (role < 0 || role >= staffCounts.Length || staffCounts[role] <= 0) return false;
+        Staff removedWorker = null;
         for (int i = Game.staff.Count - 1; i >= 0; i--)
         {
             Staff worker = Game.staff[i];
             if (worker != null && worker.role == role)
             {
+                removedWorker = worker;
                 Destroy(worker.gameObject);
                 break;
             }
         }
+        // A same-day dismissal does not refund the salary already paid.
+        if (removedWorker != null && removedWorker.hiredToday && staffHiredToday[role] > 0)
+            staffHiredToday[role]--;
         staffCounts[role]--;
         Sfx.Play(Snd.Tick, 0.45f);
+        Save();
         return true;
     }
 
@@ -494,7 +546,7 @@ public class GameManager : MonoBehaviour
         return total;
     }
 
-    public bool StaffOnShift { get { return clockMinutes >= 8f * 60f && clockMinutes < 22f * 60f; } }
+    public bool StaffOnShift { get { return clockMinutes >= 8f * 60f && clockMinutes < 20f * 60f; } }
 
     public int JetskiUpgradeCost() { return 900 + jetskiLevel * 650; }
     public int RampUpgradeCost() { return 300 + rampLevel * 350; }
@@ -612,25 +664,26 @@ public class GameManager : MonoBehaviour
         if (clockMinutes >= 1440f) clockMinutes -= 1440f;
         CheckBankruptcy();
 
-        bool crossedClosingTime = prevClock < 22f * 60f && clockMinutes >= 22f * 60f;
-        if (crossedClosingTime && PlayerPrefs.GetInt(P + "ClosingTimeTutorialV2", 0) == 0 &&
-            Game.ui != null && Game.player != null)
+        // Only the first night teaches the danger boundary and desk flow.
+        if (dayNumber == 1 && prevClock < 22f * 60f && clockMinutes >= 22f * 60f &&
+            PlayerPrefs.GetInt(P + "FirstDayNightWarningV3", 0) == 0 && Game.ui != null && Game.player != null)
         {
-            PlayerPrefs.SetInt(P + "ClosingTimeTutorialV2", 1);
-            bool mentionStaff = TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0;
-            if (mentionStaff) PlayerPrefs.SetInt(P + "StaffShiftInfo", 1);
+            PlayerPrefs.SetInt(P + "FirstDayNightWarningV3", 1);
             PlayerPrefs.Save();
-            string staffLine = mentionStaff ? "\n\nCalisanlarin da paydos etti; sabah 08:00'de geri gelecekler." : "";
-            Game.ui.ShowPausedInfo("SAAT 22:00 - GUNU BITIR",
-                "Musteriler her gun 06:00 ile 22:00 arasinda gelir." + staffLine +
-                "\n\nGunu bitirmek icin yonetim masandaki bilgisayara git.",
-                delegate { if (Game.ui != null) Game.ui.BeginEndDayDeskGuide(); });
+            Game.ui.ShowPausedInfo("GECE DENIZ TEHLIKELI",
+                "Saat 22:00'dan sonra deniz tehlikelidir. Gununu bitirmeyi unutma.\n\n" +
+                "Gun sonu icin yonetim masandaki bilgisayara git.",
+                delegate { if (Game.ui != null) Game.ui.BeginFirstNightDeskGuide(); });
         }
-        else if (crossedClosingTime && TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "StaffShiftInfo", 0) == 0)
+
+        bool crossedStaffDeparture = prevClock < 20f * 60f && clockMinutes >= 20f * 60f;
+        if (crossedStaffDeparture && TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "FirstStaffDepartureInfoV3", 0) == 0)
         {
-            PlayerPrefs.SetInt(P + "StaffShiftInfo", 1);
+            PlayerPrefs.SetInt(P + "FirstStaffDepartureInfoV3", 1);
             PlayerPrefs.Save();
-            if (Game.ui != null) Game.ui.Toast("Saat 22:00! Calisanlar paydos etti. Sabah 08:00'de geri gelecekler.", 7f);
+            if (Game.ui != null) Game.ui.ShowPausedInfo("CALISANLAR PAYDOS ETTI",
+                "Saat 20:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.\n\n" +
+                "Saat 22:00'dan sonra deniz tehlikelidir. Islerini 22:00'dan once bitir ve gunu bitirmeyi unutma.");
         }
 
         // Auto shop tech
@@ -649,21 +702,17 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // 05:00 auto-end: if the player never ended the day, do it for them
-        if (Game.pc != null && Game.player != null && CrossedFive())
+        // Midnight auto-end: the same real summary flow opens at 00:00.
+        if (Game.pc != null && Game.player != null && CrossedMidnight())
             Game.pc.OpenDaySummary(true);
 
         saveTimer += Time.deltaTime;
         if (saveTimer > 10f) { saveTimer = 0f; Save(); }
     }
 
-    bool CrossedFive()
+    bool CrossedMidnight()
     {
-        float five = 5f * 60f;
-        // detect the moment the clock ticks past 05:00 (wrap-aware)
-        if (prevClock < five && clockMinutes >= five && clockMinutes < five + 60f) return true;
-        if (prevClock > clockMinutes && five <= clockMinutes && clockMinutes < five + 60f) return true;
-        return false;
+        return prevClock > clockMinutes;
     }
 
     public string ClockText()
@@ -730,6 +779,7 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < upg.Length; i++) PlayerPrefs.SetInt(P + "Upg" + i, upg[i]);
         for (int i = 0; i < shopUpg.Length; i++) PlayerPrefs.SetInt(P + "ShopUpg" + i, shopUpg[i]);
         for (int i = 0; i < staffCounts.Length; i++) PlayerPrefs.SetInt(P + "Staff" + i, staffCounts[i]);
+        for (int i = 0; i < staffHiredToday.Length; i++) PlayerPrefs.SetInt(P + "StaffHiredToday" + i, staffHiredToday[i]);
         for (int i = 0; i < staffLevel.Length; i++) PlayerPrefs.SetInt(P + "StaffLevel" + i, staffLevel[i]);
         for (int i = 0; i < decorOwned.Length; i++) PlayerPrefs.SetInt(P + "Decor" + i, decorOwned[i] ? 1 : 0);
         for (int i = 0; i < zoneOpen.Length; i++) PlayerPrefs.SetInt(P + "Zone" + i, zoneOpen[i] ? 1 : 0);
@@ -796,6 +846,8 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < upg.Length; i++) upg[i] = PlayerPrefs.GetInt(P + "Upg" + i, 0);
         for (int i = 0; i < shopUpg.Length; i++) shopUpg[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "ShopUpg" + i, 0), 0, 5);
         for (int i = 0; i < staffCounts.Length; i++) staffCounts[i] = PlayerPrefs.GetInt(P + "Staff" + i, 0);
+        for (int i = 0; i < staffHiredToday.Length; i++)
+            staffHiredToday[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "StaffHiredToday" + i, 0), 0, staffCounts[i]);
         for (int i = 0; i < staffLevel.Length; i++) staffLevel[i] = Mathf.Clamp(PlayerPrefs.GetInt(P + "StaffLevel" + i, 1), 1, 5);
         for (int i = 0; i < decorOwned.Length; i++) decorOwned[i] = PlayerPrefs.GetInt(P + "Decor" + i, 0) == 1;
         for (int i = 0; i < zoneOpen.Length; i++) zoneOpen[i] = PlayerPrefs.GetInt(P + "Zone" + i, 0) == 1;

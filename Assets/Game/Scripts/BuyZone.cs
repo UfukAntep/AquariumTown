@@ -57,7 +57,16 @@ public class BuyZone : MonoBehaviour
         GameObject fill = B.Prim(PrimitiveType.Cube, "PlotFill", z.root.transform, new Vector3(0f, 0.06f, -2.3f), Vector3.zero,
             new Vector3(4.6f, 0.03f, 0.01f), MatLib.Get(new Color(0.45f, 0.85f, 0.3f)));
         z.plotFill = fill.transform;
-        TextMesh name = B.Text3D(SpeciesInfo.Name(sp), z.root.transform, new Vector3(0f, 2.7f, 0f), 0.09f, new Color(1f, 0.95f, 0.7f));
+        TextMesh name = B.Text3D(SpeciesInfo.Name(sp), z.root.transform, new Vector3(0f, 0.15f, 1.35f), 0.08f, new Color(1f, 0.95f, 0.7f), false);
+        name.transform.localEulerAngles = new Vector3(90f, 0f, 0f);
+        name.fontStyle = FontStyle.Bold;
+        // Plot labels lie on the same horizontal plane as the pad. They keep
+        // their spacing and perspective while the player/camera moves.
+        Billboard costBillboard = z.text.GetComponent<Billboard>();
+        if (costBillboard != null) Object.Destroy(costBillboard);
+        z.text.transform.localPosition = new Vector3(0f, 0.16f, -1.35f);
+        z.text.transform.localEulerAngles = new Vector3(90f, 0f, 0f);
+        z.text.characterSize = 0.055f;
         return z;
     }
 
@@ -69,9 +78,10 @@ public class BuyZone : MonoBehaviour
         B.Prim(PrimitiveType.Cylinder, "Base", z.root.transform, new Vector3(0f, 0.03f, 0f), Vector3.zero, new Vector3(3f, 0.03f, 3f), MatLib.Get(dim));
         GameObject fill = B.Prim(PrimitiveType.Cylinder, "Fill", z.root.transform, new Vector3(0f, 0.07f, 0f), Vector3.zero, new Vector3(0.01f, 0.03f, 0.01f), MatLib.Get(color));
         z.fillDisc = fill.transform;
-        z.text.transform.localPosition = new Vector3(0f, 2.25f, 0f);
-        z.text.characterSize = 0.15f;
-        TextMesh title = B.Text3D(label, z.root.transform, new Vector3(0f, 3.35f, 0f), 0.15f, new Color(1f, 0.95f, 0.55f));
+        z.text.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+        z.text.characterSize = 0.052f;
+        z.text.lineSpacing = 0.78f;
+        TextMesh title = B.Text3D(label, z.root.transform, new Vector3(0f, 3.65f, 0f), 0.105f, new Color(1f, 0.95f, 0.55f));
         title.fontStyle = FontStyle.Bold;
         return z;
     }
@@ -103,7 +113,10 @@ public class BuyZone : MonoBehaviour
     {
         int remaining = Mathf.Max(0, cost - paid);
         bool canBuy = prereq == null || prereq();
-        if (text != null) text.text = "$" + B.Money(remaining) + (canBuy ? "" : "\nKILITLI");
+        if (text != null)
+            text.text = plotSpecies >= 0
+                ? (canBuy ? "$" + B.Money(remaining) : "KILITLI  |  $" + B.Money(remaining))
+                : "$" + B.Money(remaining) + (canBuy ? "" : "\nKILITLI");
     }
 
     void Update()

@@ -190,7 +190,7 @@ public static class SpeciesInfo
 public enum Upg
 {
     Capacity = 0, MoveSpeed = 1, SwimSpeed = 2, RadarSpeed = 3, RadarRange = 4,
-    TipChance = 5, CustSpeed = 6, ExtraCash = 7
+    TipChance = 5, CustSpeed = 6, ExtraCash = 7, Sprint = 8
 }
 
 public enum ControlAction
@@ -256,14 +256,15 @@ public static class ControlBindings
 
 public static class UpgInfo
 {
-    public static readonly int Count = 8;
-    static readonly string[] label = { "CANTA", "KOSU HIZI", "YUZME HIZI", "RADAR HIZI", "RADAR MENZILI", "BAHSIS", "MUSTERI HIZI", "EKSTRA PARA" };
+    public static readonly int Count = 9;
+    static readonly string[] label = { "CANTA", "KOSU HIZI", "YUZME HIZI", "RADAR HIZI", "RADAR MENZILI", "BAHSIS", "MUSTERI HIZI", "EKSTRA PARA", "DEPAR" };
     static readonly string[] desc = {
         "+3 balik tasima kapasitesi", "+%8 kosu hizi", "+%10 yuzme hizi", "+%12 deniz tarama hizi",
-        "+0.5 deniz radar menzili", "+%6 musteri bahsis sansi", "+%10 musteri hareket hizi", "+%10 daha fazla satis geliri" };
-    static readonly int[] baseCost = { 40, 60, 60, 80, 80, 120, 100, 150 };
-    static readonly float[] mult = { 1.9f, 1.8f, 1.8f, 1.9f, 1.9f, 2.0f, 1.9f, 2.1f };
-    static readonly int[] max = { 15, 12, 12, 10, 10, 8, 8, 10 };
+        "+0.5 deniz radar menzili", "+%6 musteri bahsis sansi", "+%10 musteri hareket hizi", "+%10 daha fazla satis geliri",
+        "Shift basiliyken hizli kos; her seviye depari hizlandirir" };
+    static readonly int[] baseCost = { 40, 60, 60, 80, 80, 120, 100, 150, 220 };
+    static readonly float[] mult = { 1.9f, 1.8f, 1.8f, 1.9f, 1.9f, 2.0f, 1.9f, 2.1f, 2.2f };
+    static readonly int[] max = { 15, 12, 12, 10, 10, 8, 8, 10, 5 };
 
     public static string Label(Upg u) { return label[(int)u]; }
     public static string Desc(Upg u) { return desc[(int)u]; }
@@ -444,8 +445,8 @@ public static class MatLib
 
     static Texture2D TriangleTex(Color a, Color b)
     {
-        int n = 64;
-        Texture2D tex = new Texture2D(n, n, TextureFormat.RGB24, false);
+        int n = 256;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGB24, true);
         for (int y = 0; y < n; y++)
             for (int x = 0; x < n; x++)
             {
@@ -454,13 +455,15 @@ public static class MatLib
             }
         tex.Apply();
         tex.wrapMode = TextureWrapMode.Repeat;
+        tex.filterMode = FilterMode.Trilinear;
+        tex.anisoLevel = 8;
         return tex;
     }
 
     static Texture2D CellTex(Color a, Color b)
     {
-        int n = 64;
-        Texture2D tex = new Texture2D(n, n, TextureFormat.RGB24, false);
+        int n = 256;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGB24, true);
         for (int y = 0; y < n; y++)
             for (int x = 0; x < n; x++)
             {
@@ -469,6 +472,8 @@ public static class MatLib
             }
         tex.Apply();
         tex.wrapMode = TextureWrapMode.Repeat;
+        tex.filterMode = FilterMode.Trilinear;
+        tex.anisoLevel = 8;
         return tex;
     }
 }
@@ -515,8 +520,11 @@ public static class B
         TextMesh tm = go.AddComponent<TextMesh>();
         go.AddComponent<AutoLocalizeTextMesh>();
         tm.font = UIFont;
-        tm.fontSize = 64;
-        tm.characterSize = size;
+        // Render twice as many glyph pixels while preserving the exact same
+        // world-space dimensions. Nearby signs no longer dissolve into a
+        // low-resolution dynamic-font atlas.
+        tm.fontSize = 128;
+        tm.characterSize = size * 0.5f;
         tm.anchor = TextAnchor.MiddleCenter;
         tm.alignment = TextAlignment.Center;
         tm.fontStyle = FontStyle.Bold;
@@ -524,6 +532,8 @@ public static class B
         tm.text = txt;
         MeshRenderer mr = go.GetComponent<MeshRenderer>();
         if (UIFont != null) mr.sharedMaterial = UIFont.material;
+        mr.shadowCastingMode = ShadowCastingMode.Off;
+        mr.receiveShadows = false;
         if (billboard) go.AddComponent<Billboard>();
         return tm;
     }

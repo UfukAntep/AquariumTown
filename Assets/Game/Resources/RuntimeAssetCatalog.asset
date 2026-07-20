@@ -118,5 +118,6 @@ MonoBehaviour:
   - {fileID: 3525843560809575471, guid: 646caabf5c704364dbe43e46f2e91408, type: 3}
   - {fileID: 2479138079228362938, guid: e4aaa8abea0a2014dabb41126ebaf9f3, type: 3}
   - {fileID: 4134688657981179705, guid: ba90209a349e0b940b9c8ea65e8e77b2, type: 3}
+  sharkPrefab: {fileID: 5268092496700119527, guid: 6fec270884648aa439b5c3aaecf59e35, type: 3}
   skyMaterial: {fileID: 2100000, guid: ffb777b6c60362f4c91c6e29cd23f381, type: 2}
   arrowPrefab: {fileID: 100100000, guid: e6e04e01b5315c84f89cf664adf669d6, type: 3}

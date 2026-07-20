@@ -151,12 +151,13 @@ public static class ManagementRoomSystem
         root = new GameObject("ManagementRoomUpgrades");
         root.transform.SetParent(Game.world, false);
         int level = Game.gm.shopUpg[4];
-        float height = level == 1 ? 1.05f : Mathf.Lerp(1.6f, 3.6f, (level - 2) / 3f);
-        Material wall = MatLib.Get(level == 1 ? new Color(0.48f, 0.72f, 0.78f) :
-            Color.Lerp(new Color(0.32f, 0.55f, 0.72f), new Color(0.22f, 0.3f, 0.5f), (level - 2) / 3f));
-        // Level one is visibly a cheap fence; later levels become increasingly
-        // tall solid walls. Level five matches the 3.6m shop wall.
-        if (level == 1) BuildFence(root.transform, wall);
+        float height = level == 3 ? 0.55f : level == 4 ? 1.05f : 1.6f;
+        Material wall = MatLib.Get(level <= 2 ? new Color(0.48f, 0.72f, 0.78f) :
+            Color.Lerp(new Color(0.32f, 0.55f, 0.72f), new Color(0.22f, 0.3f, 0.5f), (level - 3) / 2f));
+        // Five visibly distinct stages: improvised barrier, proper fence, low
+        // wall, medium wall, then the former level-two solid-wall height.
+        if (level == 1) BuildFlimsyFence(root.transform, wall);
+        else if (level == 2) BuildFence(root.transform, wall);
         else
         {
             B.Prim(PrimitiveType.Cube, "RoomBottom", root.transform, new Vector3(1.7f, height * 0.5f, -3f), Vector3.zero, new Vector3(10.5f, height, 0.16f), wall, true);
@@ -184,6 +185,24 @@ public static class ManagementRoomSystem
             Game.cameraDesk = cameraDesk.AddComponent<CameraDeskUnit>();
         }
         SecurityCameraSystem.Refresh();
+    }
+
+    static void BuildFlimsyFence(Transform parent, Material material)
+    {
+        for (float x = -3.5f; x <= 7f; x += 2.6f)
+            B.Prim(PrimitiveType.Cube, "CheapPost", parent, new Vector3(x, 0.38f, -3f),
+                new Vector3(0f, 0f, Random.Range(-8f, 8f)), new Vector3(0.1f, 0.76f, 0.1f), material, true);
+        for (float z = -3f; z <= 8f; z += 2.6f)
+            B.Prim(PrimitiveType.Cube, "CheapPost", parent, new Vector3(-3.5f, 0.38f, z),
+                new Vector3(Random.Range(-8f, 8f), 0f, 0f), new Vector3(0.1f, 0.76f, 0.1f), material, true);
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(1.7f, 0.48f, -3f),
+            new Vector3(0f, 0f, 2f), new Vector3(10.5f, 0.09f, 0.09f), material, true);
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(-3.5f, 0.48f, 2.5f),
+            new Vector3(0f, 2f, 0f), new Vector3(0.09f, 0.09f, 11f), material, true);
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(-1.5f, 0.48f, 8f),
+            new Vector3(0f, 0f, -2f), new Vector3(4f, 0.09f, 0.09f), material, true);
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(5.2f, 0.48f, 8f),
+            new Vector3(0f, 0f, 3f), new Vector3(3.5f, 0.09f, 0.09f), material, true);
     }
 
     static void BuildFence(Transform parent, Material material)

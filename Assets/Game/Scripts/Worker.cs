@@ -5,6 +5,7 @@ using UnityEngine;
 public class Staff : MonoBehaviour
 {
     public int role;
+    public bool hiredToday;
 
     enum S { Idle, MoveToWork, Working, MoveToDeliver, Delivering }
     S state = S.Idle;
@@ -20,14 +21,16 @@ public class Staff : MonoBehaviour
     Vector3 moveTarget;
     float timer;
     bool shiftVisible = true;
+    bool shiftWorkDiscarded;
     float MoveSpeed { get { return 4.2f * (Game.gm != null ? Game.gm.StaffSpeedMultiplier(role) : 1f); } }
 
-    public static Staff Create(int role, Vector3 pos)
+    public static Staff Create(int role, Vector3 pos, bool hiredToday = false)
     {
         GameObject go = new GameObject("Staff_" + StaffInfo.Names[role]);
         go.transform.position = pos;
         Staff w = go.AddComponent<Staff>();
         w.role = role;
+        w.hiredToday = hiredToday;
         w.Build();
         Game.staff.Add(w);
         return w;
@@ -71,6 +74,11 @@ public class Staff : MonoBehaviour
         float dt = Time.deltaTime;
         if (!Game.gm.StaffOnShift)
         {
+            if (!shiftWorkDiscarded)
+            {
+                DiscardCarriedWork();
+                shiftWorkDiscarded = true;
+            }
             Vector3 home = Customer.DoorPos + new Vector3(7f + role * 0.25f, 0f, -12f);
             if (MoveTo(home, dt) && shiftVisible) SetShiftVisible(false);
             return;
@@ -82,6 +90,7 @@ public class Staff : MonoBehaviour
             state = S.Idle;
             timer = 0f;
         }
+        shiftWorkDiscarded = false;
         switch (role)
         {
             case 0: TickCashier(dt); break;
@@ -101,6 +110,22 @@ public class Staff : MonoBehaviour
         shiftVisible = visible;
         Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
         for (int i = 0; i < renderers.Length; i++) renderers[i].enabled = visible;
+    }
+
+    void DiscardCarriedWork()
+    {
+        if (role == 0 && Game.register != null) Game.register.CashierPresent = false;
+        for (int i = 0; i < carriedFish.Count; i++)
+            if (carriedFish[i] != null) Destroy(carriedFish[i].gameObject);
+        carriedFish.Clear();
+        for (int i = 0; i < carriedTrash.Count; i++)
+            if (carriedTrash[i] != null) Destroy(carriedTrash[i].gameObject);
+        carriedTrash.Clear();
+        ClearCrates();
+        chaseTarget = null;
+        targetTank = null;
+        state = S.Idle;
+        timer = 0f;
     }
 
     void OnDestroy()

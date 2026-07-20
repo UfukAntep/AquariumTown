@@ -124,7 +124,7 @@ public static class Sfx
             case Snd.GlassBreak: return Noise(0.6f, 0.8f, 1800f);
             case Snd.Repair: return Tone(new float[] { 392f, 523f, 659f, 784f }, 0.08f);
             case Snd.TrashPickup: return Tone(new float[] { 300f, 480f }, 0.045f);
-            case Snd.TrashDump: return Tone(new float[] { 300f, 220f, 520f }, 0.055f);
+            case Snd.TrashDump: return Tone(new float[] { 620f, 820f }, 0.035f);
             case Snd.ShopToggle: return Tone(new float[] { 330f, 494f, 659f }, 0.075f);
             case Snd.Shark: return Tone(new float[] { 110f, 92f, 73f }, 0.16f);
             case Snd.MoneyPickup: return Tone(new float[] { 988f, 1318f, 1568f }, 0.07f);

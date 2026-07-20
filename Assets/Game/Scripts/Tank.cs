@@ -62,6 +62,8 @@ public class Tank : MonoBehaviour
         cc.height = 2.6f;
 
         B.SpeciesBubble(species, transform, new Vector3(-2.6f, 3.6f, 0f)).AddComponent<Bobber>();
+        // Keep the tank itself unobstructed: high-resolution glyphs provide
+        // clarity without the large dark plate used by the previous revision.
         stockText = B.Text3D("", transform, new Vector3(0f, 3.1f, 0f), 0.12f, Color.white);
 
         GameObject dr = new GameObject("Decor");
@@ -108,7 +110,7 @@ public class Tank : MonoBehaviour
         if (broken)
         {
             stockText.text = "KIRIK! Tamir icin yaninda dur";
-            stockText.color = new Color(1f, 0.4f, 0.3f);
+            stockText.color = new Color(1f, 0.9f, 0.22f);
         }
         else if (!filterRunning)
         {
@@ -163,6 +165,25 @@ public class Tank : MonoBehaviour
         }
         UpdateText();
         Sfx.Play(Snd.Drop, 0.4f);
+        TryTeachShopOpening();
+    }
+
+    void TryTeachShopOpening()
+    {
+        if (species != 0 || Game.gm == null || Game.ui == null) return;
+        if (PlayerPrefs.GetInt("AT3_FirstTankShopGuideShown", 0) == 1) return;
+        PlayerPrefs.SetInt("AT3_FirstTankShopGuideShown", 1);
+        if (Game.gm.shopOpen)
+        {
+            PlayerPrefs.SetInt("AT3_FirstTankShopGuideDone", 1);
+            PlayerPrefs.Save();
+            return;
+        }
+        PlayerPrefs.Save();
+        Game.ui.ShowPausedInfo("DUKKANI ACMA ZAMANI!",
+            "Ilk baligin akvaryumda! Musterilerin gelebilmesi icin kapidaki AC / KAPAT tabelasindan dukkani ac.\n\n" +
+            "Tabelayi gosteren isareti takip et ve yaninda E'ye bas.",
+            delegate { Game.ui.BeginShopGateGuide(); });
     }
 
     public void AddSaved(int n)
@@ -297,7 +318,10 @@ public class Tank : MonoBehaviour
         {
             repairTime += Time.deltaTime;
             if (stockText != null)
+            {
                 stockText.text = "TAMIR EDILIYOR... " + Mathf.CeilToInt(RepairDuration - repairTime) + "s";
+                stockText.color = Color.white;
+            }
             if (repairTime >= RepairDuration) Repair();
         }
         else repairTime = 0f;

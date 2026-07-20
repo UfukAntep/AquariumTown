@@ -1,9 +1,9 @@
 using UnityEngine;
 
-// Camera modes: top-down follow, TPS (mouse look + camera-relative movement), PC zoom.
+// Camera modes: top-down follow, TPS, first-person and PC zoom.
 public class CameraRig : MonoBehaviour
 {
-    public enum Mode { TopDown, TPS, PC }
+    public enum Mode { TopDown, TPS, FPS, PC }
     public Mode mode = Mode.TopDown;
 
     public Transform target;
@@ -35,32 +35,58 @@ public class CameraRig : MonoBehaviour
         return rig;
     }
 
-    public bool IsTPS { get { return mode == Mode.TPS; } }
+    // Existing movement/UI callers use IsTPS to mean a mouse-look,
+    // camera-relative player mode. FPS follows the same control rules.
+    public bool IsTPS { get { return mode == Mode.TPS || mode == Mode.FPS; } }
+    public bool IsFPS { get { return mode == Mode.FPS; } }
     public float TPSYaw { get { return tpsYaw; } }
 
     public void TogglePlayerMode()
     {
         if (mode == Mode.PC) return;
-        mode = mode == Mode.TPS ? Mode.TopDown : Mode.TPS;
+        Mode previous = mode;
+        mode = mode == Mode.TopDown ? Mode.TPS : mode == Mode.TPS ? Mode.FPS : Mode.TopDown;
         if (mode == Mode.TPS)
         {
-            tpsYaw = Game.player != null && Game.player.visual != null ? Game.player.visual.eulerAngles.y : 0f;
+            if (previous == Mode.TopDown)
+                tpsYaw = Game.player != null && Game.player.visual != null ? Game.player.visual.eulerAngles.y : 0f;
             tpsPitch = 16f;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
         }
-        else
+        else if (mode == Mode.FPS)
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            tpsPitch = Mathf.Clamp(tpsPitch, -75f, 75f);
         }
+        bool mouseLook = mode == Mode.TPS || mode == Mode.FPS;
+        Cursor.lockState = mouseLook ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !mouseLook;
+        ApplyPlayerVisibility();
+    }
+
+    void ApplyPlayerVisibility()
+    {
+        if (Game.player != null && Game.player.visual != null)
+            Game.player.visual.gameObject.SetActive(mode != Mode.FPS);
     }
 
     public void Shake(float amp, float time) { shakeAmp = amp; shakeTime = time; }
 
     public void ZoomToPC(System.Action done)
     {
-        if (mode == Mode.PC) return;
+        if (mode == Mode.PC)
+        {
+            if (zoomingOut)
+            {
+                zoomingOut = false;
+                zoomingIn = true;
+                pcT = 1f - Mathf.Clamp01(pcT);
+                onZoomDone = done;
+            }
+            else if (!zoomingIn && done != null)
+            {
+                done();
+            }
+            return;
+        }
         returnMode = mode;
         mode = Mode.PC;
         pcFrom = transform.position;
@@ -76,9 +102,12 @@ public class CameraRig : MonoBehaviour
     public void ReturnFromPC()
     {
         if (mode != Mode.PC) return;
+        if (zoomingOut) return;
+        if (zoomingIn) pcT = 1f - Mathf.Clamp01(pcT);
+        else pcT = 0f;
         zoomingIn = false;
         zoomingOut = true;
-        pcT = 0f;
+        onZoomDone = null;
     }
 
     void Update()
@@ -90,11 +119,13 @@ public class CameraRig : MonoBehaviour
             TogglePlayerMode();
         }
 
-        // GTA-style free orbit: mouse controls yaw + pitch
-        if (mode == Mode.TPS && (Game.ui == null || !Game.ui.AnyMenuOpen))
+        // Mouse controls both third-person orbit and first-person look.
+        if ((mode == Mode.TPS || mode == Mode.FPS) && (Game.ui == null || !Game.ui.AnyMenuOpen))
         {
             tpsYaw += Input.GetAxis("Mouse X") * 3.2f;
-            tpsPitch = Mathf.Clamp(tpsPitch - Input.GetAxis("Mouse Y") * 2.4f, -8f, 65f);
+            float minPitch = mode == Mode.FPS ? -80f : -8f;
+            float maxPitch = mode == Mode.FPS ? 80f : 65f;
+            tpsPitch = Mathf.Clamp(tpsPitch - Input.GetAxis("Mouse Y") * 2.4f, minPitch, maxPitch);
         }
 
         // scroll wheel zoom (both camera modes), persisted
@@ -146,9 +177,10 @@ public class CameraRig : MonoBehaviour
                 {
                     zoomingOut = false;
                     mode = returnMode;
-                    bool tps = mode == Mode.TPS;
-                    Cursor.lockState = tps ? CursorLockMode.Locked : CursorLockMode.None;
-                    Cursor.visible = !tps;
+                    bool mouseLook = mode == Mode.TPS || mode == Mode.FPS;
+                    Cursor.lockState = mouseLook ? CursorLockMode.Locked : CursorLockMode.None;
+                    Cursor.visible = !mouseLook;
+                    ApplyPlayerVisibility();
                 }
             }
             return;
@@ -174,6 +206,13 @@ public class CameraRig : MonoBehaviour
             transform.position = Vector3.Lerp(transform.position, want, 14f * Time.deltaTime) + shake;
             Quaternion look = Quaternion.LookRotation(pivot - transform.position);
             transform.rotation = Quaternion.Slerp(transform.rotation, look, 16f * Time.deltaTime);
+        }
+        else if (mode == Mode.FPS)
+        {
+            Quaternion look = Quaternion.Euler(tpsPitch, tpsYaw, 0f);
+            Vector3 eye = target.position + Vector3.up * 1.65f;
+            transform.position = Vector3.Lerp(transform.position, eye, 22f * Time.deltaTime) + shake;
+            transform.rotation = Quaternion.Slerp(transform.rotation, look, 22f * Time.deltaTime);
         }
     }
 }

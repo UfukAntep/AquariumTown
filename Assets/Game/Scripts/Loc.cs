@@ -151,6 +151,48 @@ public static class Loc
         En("Gunu bitirmek icin yonetim masandaki bilgisayara gidebilirsin.",
             "You can use the computer at your management desk to end the day.");
         En("GUNU BITIRMEK ICIN YONETIM MASANA GIT", "GO TO YOUR MANAGEMENT DESK TO END THE DAY");
+        En("YONETIM MASASINI KULLAN", "USE THE MANAGEMENT DESK");
+        En("2. AKVARYUMU AC", "OPEN THE 2ND AQUARIUM");
+        En("KLAVYE VE FARE DESTEGI", "KEYBOARD AND MOUSE SUPPORT");
+        En("Oyunu hem KLAVYE hem de FARE ile oynayabilirsin.", "You can play with both KEYBOARD and MOUSE.");
+        En("Klavye: WASD veya ok tuslariyla hareket et.", "Keyboard: Move with WASD or the arrow keys.");
+        En("Fare: Sol tusa basili tutarak git.", "Mouse: Hold the left button to move.");
+        En("DUKKANINI HAZIRLA", "PREPARE YOUR SHOP");
+        En("Dukkanin su an KAPALI.", "Your shop is currently CLOSED.");
+        En("Once yerdeki copleri toplayip disaridaki kutuya at,", "First collect the trash and put it in the bin outside,");
+        En("sonra denize kos ve radarla balik yakala!", "then run to the sea and catch a fish with the radar!");
+        En("Hazir olunca kapidaki tabeladan dukkani ac.", "When ready, open the shop using the sign by the door.");
+        En("YONETIM MASASI ACILDI", "MANAGEMENT DESK UNLOCKED");
+        En("Yonetim masasindaki bilgisayardan gelistirmeler, calisanlar, akvaryumlar, teknoloji ve dukkan ayarlarini yonetebilirsin.",
+            "Use the management computer for upgrades, staff, aquariums, technology and shop settings.");
+        En("Masayi gosteren isareti takip et ve bilgisayara E ile gir.", "Follow the marker and press E at the computer.");
+        En("ILK GUNUNU BITIR", "END YOUR FIRST DAY");
+        En("Saat 19:00 oldu. Hazir oldugunda gunu bitirmek icin yonetim masandaki bilgisayara git.",
+            "It is 19:00. When ready, use the management computer to end the day.");
+        En("CALISAN VARDIYASI", "STAFF SHIFTS");
+        En("CALISANLAR PAYDOS ETTI", "STAFF HAVE CLOCKED OUT");
+        En("GECE DENIZ TEHLIKELI", "THE SEA IS DANGEROUS AT NIGHT");
+        En("Calisanlar her sabah 08:00'de ise gelir ve aksam 20:00'de evlerine gider.",
+            "Staff arrive at 08:00 and go home at 20:00 every day.");
+        En("Ise alirken bugunun maasi hemen odenir; sonraki maaslar gun sonunda kesilir.",
+            "Today's wage is paid immediately when hiring; later wages are charged at day end.");
+        En("Saat 20:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.",
+            "It is 20:00; staff are going home and will return at 08:00.");
+        En("Saat 22:00'dan sonra deniz tehlikelidir.", "The sea is dangerous after 22:00.");
+        En("Islerini 22:00'dan once bitir ve gunu bitirmeyi unutma.",
+            "Finish your work before 22:00 and remember to end the day.");
+        En("Gun sonu icin yonetim masandaki bilgisayara git.",
+            "Go to the management computer to end the day.");
+        En("GUN SONUNDA ODENECEK", "DUE AT DAY END");
+        En("Yeni calisanin bugunku maasi ise alirken kesilir",
+            "A new employee's wage for today is charged when hired");
+        En("BUGUN", "TODAY");
+        En("Calisanlarin her sabah 07:00'de ise gelir ve aksam 21:00'de evlerine gider.",
+            "Staff arrive at 07:00 and go home at 21:00 every day.");
+        En("Mesai disinda calismazlar; gunluk maaslari gun sonunda odenir.",
+            "They do not work off shift; daily wages are paid at day end.");
+        En("Saat 21:00 oldu; calisanlar evlerine gidiyor.", "It is 21:00; staff are going home.");
+        En("Her sabah 07:00'de yeniden ise gelecekler.", "They will return at 07:00 every morning.");
         En("Hirsiz baliklarinizi veya paralarinizi calabilir.", "A thief can steal your fish or money.");
         En("Onu kovala ve farenin SAG TIK tusuyla veya SPACE ile vur!",
             "Chase him and hit him with RIGHT CLICK or SPACE!");
@@ -238,6 +280,24 @@ public static class Loc
         En("+3 balik tasima kapasitesi", "+3 fish carrying capacity");
         En("+%8 kosu hizi", "+8% running speed"); En("+%10 yuzme hizi", "+10% swimming speed");
         En("+%12 deniz tarama hizi", "+12% sea scanning speed"); En("+0.5 deniz radar menzili", "+0.5 sea radar range");
+        En("DEPAR", "SPRINT");
+        En("Shift basiliyken hizli kos; her seviye depari hizlandirir",
+            "Run faster while holding Shift; each level makes sprinting faster");
+        En("Shift henuz etkisiz", "Shift is not active yet");
+        En("DAHA HIZLI BUYU", "GROW FASTER");
+        En("Actigin her yeni akvaryum seni bir sonraki seviyeye daha hizli tasir. Seviye atladikca yeni olaylar ve oyun mekanikleri acilir.",
+            "Every new aquarium moves you toward the next level faster. New events and mechanics unlock as you level up.");
+        En("Hizli buyumek icin Yonetim Paneli'nden calisan ise al, akvaryum kapasitesini gelistir ve stoklarini dolu tut.",
+            "To grow quickly, hire staff, upgrade aquarium capacity and keep stock full from the Management Panel.");
+        En("DUKKANI ACMA ZAMANI", "TIME TO OPEN THE SHOP");
+        En("Ilk baligin akvaryumda! Musterilerin gelebilmesi icin kapidaki AC / KAPAT tabelasindan dukkani ac.",
+            "Your first fish is in the aquarium! Open the shop from the OPEN / CLOSE sign so customers can enter.");
+        En("Tabelayi gosteren isareti takip et ve yaninda E'ye bas.",
+            "Follow the marker to the sign and press E beside it.");
+        En("DUKKANI AC", "OPEN THE SHOP");
+        En("Oyunu hem KLAVYE hem de FARE ile oynayabilirsin.", "You can play with both KEYBOARD and MOUSE.");
+        En("Klavye: WASD veya ok tuslariyla hareket et.", "Keyboard: Move with WASD or the arrow keys.");
+        En("Fare: Sol tusa basili tutarak git; sag tikla vur.", "Mouse: Hold left click to move; right click to punch.");
         En("+%6 musteri bahsis sansi", "+6% customer tip chance"); En("+%10 musteri hareket hizi", "+10% customer movement speed");
         En("+%10 daha fazla satis geliri", "+10% additional sales income");
         En("Maks stok", "Max stock"); En("Kazanc", "Revenue"); En("Ozet", "Summary"); En("Yorum", "Reviews");

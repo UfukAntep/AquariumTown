@@ -10,7 +10,7 @@ public class UIManager : MonoBehaviour
     RectTransform trashTutorialRect, trashTutorialArrow, endDayGuideRect, endDayGuideArrow;
     GameObject satRoot, promptRoot, seaDirtRoot, beachDirtRoot, capacityRoot;
     Image satIcon;
-    GameObject toastGo, cheatIndicatorGo, cameraTutorialGo, trashTutorialGo, trashTutorialDot, endDayGuideGo, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo, controlsGo, keyboardControlsPage, mouseControlsPage;
+    GameObject toastGo, cheatIndicatorGo, cameraTutorialGo, trashTutorialGo, trashTutorialDot, endDayGuideGo, endDayGuideDot, thiefGo, celebrationGo, mainMenuGo, pauseGo, infoGo, controlsGo, keyboardControlsPage, mouseControlsPage;
     Text celebTitle, celebSub, infoTitle, infoBody;
     GameObject infoTrophyVisual;
     RectTransform infoBodyRect;
@@ -65,6 +65,7 @@ public class UIManager : MonoBehaviour
         Canvas canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 10;
+        canvas.pixelPerfect = true;
         CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1600, 900);
@@ -156,31 +157,39 @@ public class UIManager : MonoBehaviour
         // First-cleanup beacon: a small pulsing corner marker stays visible
         // until every starter poop is collected and dumped for the first time.
         trashTutorialGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(0f, 250f), new Vector2(405f, 72f), new Color(0.08f, 0.24f, 0.2f, 0.96f), true, true);
+            new Vector2(0f, 250f), new Vector2(540f, 76f), new Color(0.08f, 0.24f, 0.2f, 0.96f), true, true);
         trashTutorialRect = trashTutorialGo.GetComponent<RectTransform>();
         trashTutorialDot = UIKit.Icon(trashTutorialGo.transform, UIKit.Circle(), new Vector2(0f, 0.5f),
             new Vector2(28f, 0f), new Vector2(25f, 25f), UIKit.Yellow);
         GameObject arrowArea = UIKit.Panel(trashTutorialGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
             new Vector2(58f, 0f), new Vector2(54f, 54f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        Text trashArrowText = UIKit.Label(arrowArea.transform, "➜", 38, UIKit.Yellow, TextAnchor.MiddleCenter, true);
+        Text trashArrowText = UIKit.Label(arrowArea.transform, "\u279C", 38, UIKit.Yellow, TextAnchor.MiddleCenter, true);
         trashTutorialArrow = trashArrowText.rectTransform;
         GameObject trashTextArea = UIKit.Panel(trashTutorialGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-            new Vector2(92f, 0f), new Vector2(295f, 58f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            new Vector2(118f, 0f), new Vector2(402f, 60f), new Color(0f, 0f, 0f, 0.001f), false, false);
         trashTutorialText = UIKit.Label(trashTextArea.transform, "COPLERI TOPLA  0/5", 18, Color.white, TextAnchor.MiddleLeft, true);
+        trashTutorialText.resizeTextForBestFit = true;
+        trashTutorialText.resizeTextMinSize = 11;
+        trashTutorialText.resizeTextMaxSize = 18;
         trashTutorialGo.SetActive(false);
 
-        // One-time management-desk beacon shown after the 10:00 customer-hours
-        // lesson. It follows the screen edge and points directly at the desk.
+        // Shared screen-edge guide. Shop opening, the second tank and management
+        // lessons all use the same visual language as the first trash-bin guide.
         endDayGuideGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(0f, 245f), new Vector2(560f, 82f), new Color(0.08f, 0.2f, 0.38f, 0.97f), true, true);
+            new Vector2(0f, 245f), new Vector2(560f, 76f), new Color(0.08f, 0.24f, 0.2f, 0.96f), true, true);
         endDayGuideRect = endDayGuideGo.GetComponent<RectTransform>();
+        endDayGuideDot = UIKit.Icon(endDayGuideGo.transform, UIKit.Circle(), new Vector2(0f, 0.5f),
+            new Vector2(28f, 0f), new Vector2(25f, 25f), UIKit.Yellow);
         GameObject deskArrowArea = UIKit.Panel(endDayGuideGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-            new Vector2(38f, 0f), new Vector2(58f, 58f), UIKit.Yellow, true, false);
-        Text deskArrow = UIKit.Label(deskArrowArea.transform, ">", 38, new Color(0.18f, 0.25f, 0.35f), TextAnchor.MiddleCenter);
+            new Vector2(58f, 0f), new Vector2(54f, 54f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        Text deskArrow = UIKit.Label(deskArrowArea.transform, "\u279C", 38, UIKit.Yellow, TextAnchor.MiddleCenter, true);
         endDayGuideArrow = deskArrow.rectTransform;
         GameObject deskGuideTextArea = UIKit.Panel(endDayGuideGo.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-            new Vector2(78f, 0f), new Vector2(465f, 68f), new Color(0f, 0f, 0f, 0.001f), false, false);
-        endDayGuideText = UIKit.Label(deskGuideTextArea.transform, "GUNU BITIRMEK ICIN YONETIM MASANA GIT", 18, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(118f, 0f), new Vector2(422f, 60f), new Color(0f, 0f, 0f, 0.001f), false, false);
+        endDayGuideText = UIKit.Label(deskGuideTextArea.transform, "GUNU BITIRMEK ICIN YONETIM MASANA GIT", 18, Color.white, TextAnchor.MiddleLeft, true);
+        endDayGuideText.resizeTextForBestFit = true;
+        endDayGuideText.resizeTextMinSize = 11;
+        endDayGuideText.resizeTextMaxSize = 18;
         endDayGuideGo.SetActive(false);
 
         // ----- thief timer -----
@@ -385,6 +394,14 @@ public class UIManager : MonoBehaviour
     {
         bool trophy = title != null && title.Contains("KUPA");
         if (infoTrophyVisual != null) infoTrophyVisual.SetActive(trophy);
+        Outline titleOutline = infoTitle != null ? infoTitle.GetComponent<Outline>() : null;
+        if (titleOutline != null) titleOutline.enabled = !trophy;
+        if (infoTitle != null) infoTitle.fontSize = trophy ? 32 : 30;
+        if (infoBody != null)
+        {
+            infoBody.fontSize = trophy ? 20 : 22;
+            infoBody.lineSpacing = trophy ? 1.15f : 1f;
+        }
         if (infoBodyRect != null)
         {
             infoBodyRect.anchoredPosition = new Vector2(0f, trophy ? -55f : -5f);
@@ -418,10 +435,51 @@ public class UIManager : MonoBehaviour
         UpdateEndDayDeskGuide();
     }
 
+    public void BeginFirstNightDeskGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_FirstNightDeskGuideDone", 0) == 1) return;
+        PlayerPrefs.SetInt("AT3_FirstNightDeskGuideActive", 1);
+        PlayerPrefs.Save();
+        UpdateEndDayDeskGuide();
+    }
+
+    public void BeginManagementIntroGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_ManagementIntroGuideDone", 0) == 1) return;
+        PlayerPrefs.SetInt("AT3_ManagementIntroGuideActive", 1);
+        PlayerPrefs.Save();
+        UpdateEndDayDeskGuide();
+    }
+
+    public void BeginShopGateGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_FirstTankShopGuideDone", 0) == 1) return;
+        UpdateEndDayDeskGuide();
+    }
+
+    public void BeginSecondTankGuide()
+    {
+        if (PlayerPrefs.GetInt("AT3_SecondTankGuideDone", 0) == 1) return;
+        UpdateEndDayDeskGuide();
+    }
+
     public void CompleteEndDayDeskGuide()
     {
-        PlayerPrefs.SetInt("AT3_EndDayDeskGuideDone", 1);
-        PlayerPrefs.SetInt("AT3_EndDayDeskGuideActive", 0);
+        if (PlayerPrefs.GetInt("AT3_EndDayDeskGuideActive", 0) == 1)
+        {
+            PlayerPrefs.SetInt("AT3_EndDayDeskGuideDone", 1);
+            PlayerPrefs.SetInt("AT3_EndDayDeskGuideActive", 0);
+        }
+        if (PlayerPrefs.GetInt("AT3_ManagementIntroGuideActive", 0) == 1)
+        {
+            PlayerPrefs.SetInt("AT3_ManagementIntroGuideDone", 1);
+            PlayerPrefs.SetInt("AT3_ManagementIntroGuideActive", 0);
+        }
+        if (PlayerPrefs.GetInt("AT3_FirstNightDeskGuideActive", 0) == 1)
+        {
+            PlayerPrefs.SetInt("AT3_FirstNightDeskGuideDone", 1);
+            PlayerPrefs.SetInt("AT3_FirstNightDeskGuideActive", 0);
+        }
         PlayerPrefs.Save();
         if (endDayGuideGo != null) endDayGuideGo.SetActive(false);
     }
@@ -430,21 +488,27 @@ public class UIManager : MonoBehaviour
     void BuildLanguagePicker()
     {
         langGo = UIKit.Panel(transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000f, 4000f), new Color(0.1f, 0.35f, 0.6f, 0.98f), false, false);
-        GameObject band = UIKit.Panel(langGo.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(760f, 80f), UIKit.Orange, true, true);
-        UIKit.Label(band.transform, Loc.T("SELECT_LANGUAGE"), 30, Color.white, TextAnchor.MiddleCenter, true);
+        GameObject frame = UIKit.Panel(langGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, -10f), new Vector2(1400f, 790f), new Color(1f, 0.98f, 0.9f), true, true);
+        GameObject band = UIKit.Panel(frame.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(1420f, 84f), UIKit.Orange, true, true);
+        Text languageTitle = UIKit.Label(band.transform, Loc.T("SELECT_LANGUAGE"), 34, Color.white, TextAnchor.MiddleCenter, false);
+        languageTitle.fontStyle = FontStyle.Bold;
         // 20 flag buttons in a 5 x 4 grid
         for (int i = 0; i < Loc.Names.Length; i++)
         {
             int idx = i;
             float x = -520f + (i % 5) * 260f;
-            float y = 190f - (i / 5) * 155f;
-            GameObject card = UIKit.Panel(langGo.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(240f, 130f), UIKit.Cream, true, true);
+            float y = 230f - (i / 5) * 160f;
+            GameObject card = UIKit.Panel(frame.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(244f, 142f), Color.white, true, true);
             // Each country uses its real stripe/cross/crescent layout.
-            GameObject flag = UIKit.Panel(card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(96f, 62f), Color.white, true, false);
+            GameObject flag = UIKit.Panel(card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(116f, 74f), Color.white, true, false);
             Mask mask = flag.AddComponent<Mask>();
             mask.showMaskGraphic = true;
-            BuildFlag(flag.transform, Loc.FlagCodes[idx]);
-            Button b = UIKit.Btn(card.transform, new Vector2(0f, -42f), new Vector2(220f, 44f), UIKit.Blue, Loc.Names[idx], 16,
+            GameObject flagArt = UIKit.Panel(flag.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(94f, 60f), new Color(0f, 0f, 0f, 0.001f), false, false);
+            flagArt.transform.localScale = Vector3.one * 1.18f;
+            BuildFlag(flagArt.transform, Loc.FlagCodes[idx]);
+            Button b = UIKit.Btn(card.transform, new Vector2(0f, -49f), new Vector2(226f, 48f), idx == Loc.Lang ? UIKit.Green : UIKit.Blue, Loc.Names[idx], 18,
                 delegate
                 {
                     Loc.Set(idx);
@@ -652,7 +716,9 @@ public class UIManager : MonoBehaviour
     {
         if (Game.gm == null) return;
         int level = Game.gm.Level;
-        if (level == 5 && Game.gm.ClaimLevel5QuakeTutorial())
+        if (level == 2) StartMilestoneOnce(2);
+        else if (level == 3) StartMilestoneOnce(3);
+        else if (level == 5 && Game.gm.ClaimLevel5QuakeTutorial())
             StartCoroutine(Level5QuakeTutorialRoutine());
         else if (level == 8) StartMilestoneOnce(8);
         else if (level == 10) StartMilestoneOnce(10);
@@ -677,7 +743,16 @@ public class UIManager : MonoBehaviour
     System.Collections.IEnumerator LevelMilestoneRoutine(int level)
     {
         yield return new WaitForSeconds(2.5f);
-        if (level == 8)
+        if (level == 2)
+            ShowPausedInfo("DAHA HIZLI BUYU!",
+                "Actigin her yeni akvaryum seni bir sonraki seviyeye daha hizli tasir. Seviye atladikca yeni olaylar ve oyun mekanikleri acilir.\n\n" +
+                "Hizli buyumek icin Yonetim Paneli'nden calisan ise al, akvaryum kapasitesini gelistir ve stoklarini dolu tut.");
+        else if (level == 3)
+            ShowPausedInfo("YONETIM MASASI ACILDI!",
+                "Yonetim masasindaki bilgisayardan gelistirmeler, calisanlar, akvaryumlar, teknoloji ve dukkan ayarlarini yonetebilirsin.\n\n" +
+                "Masayi gosteren isareti takip et ve bilgisayara E ile gir.",
+                delegate { BeginManagementIntroGuide(); });
+        else if (level == 8)
             ShowPausedInfo("DENIZ KIRLENMEYE BASLADI!",
                 "Artik deniz zamanla kendi kendine kirlenebilir.\n\n" +
                 "Deniz kirliligine dikkat et; temizlemezsen baliklar olebilir.");
@@ -931,7 +1006,7 @@ public class UIManager : MonoBehaviour
             bindingButtons[i].image.color = i == pendingBinding ? UIKit.Orange : UIKit.Blue;
         }
         if (controlsHint != null && pendingBinding < 0)
-            controlsHint.text = "Space ve fare yumrugu birlikte kullanilabilir. Ok yonleri her zaman aktiftir.";
+            controlsHint.text = "Space/fare: yumruk  |  Oklar: hareket  |  Shift: Depar gelistirmesi alindiginda hizli kos";
         if (mouseMoveText != null) mouseMoveText.text = ControlBindings.MouseName(ControlBindings.MoveMouseButton) + "  -  BASILI TUT";
         if (mousePunchText != null) mousePunchText.text = ControlBindings.MouseName(ControlBindings.PunchMouseButton) + "  -  YUMRUK";
         if (cameraTutorialText != null) cameraTutorialText.text = CameraTutorialLabel();
@@ -962,7 +1037,9 @@ public class UIManager : MonoBehaviour
 
     string CameraModeLabel()
     {
-        return Loc.T("CAMERA_VIEW") + ": " + (Game.cam != null && Game.cam.IsTPS ? "TPS" : Loc.T("TOP_DOWN"));
+        string mode = Loc.T("TOP_DOWN");
+        if (Game.cam != null) mode = Game.cam.IsFPS ? "FPS" : Game.cam.IsTPS ? "TPS" : Loc.T("TOP_DOWN");
+        return Loc.T("CAMERA_VIEW") + ": " + mode;
     }
 
     public void TogglePause()
@@ -1179,15 +1256,54 @@ public class UIManager : MonoBehaviour
     void UpdateEndDayDeskGuide()
     {
         if (endDayGuideGo == null) return;
-        bool active = PlayerPrefs.GetInt("AT3_EndDayDeskGuideActive", 0) == 1 &&
-            PlayerPrefs.GetInt("AT3_EndDayDeskGuideDone", 0) == 0 &&
-            Game.player != null && Game.managerDesk != null;
+        bool shopGuide = PlayerPrefs.GetInt("AT3_FirstTankShopGuideShown", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_FirstTankShopGuideDone", 0) == 0;
+        bool secondTankGuide = PlayerPrefs.GetInt("AT3_SecondTankTutorialShown", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_SecondTankGuideDone", 0) == 0;
+        if (shopGuide && Game.gm != null && Game.gm.shopOpen)
+        {
+            PlayerPrefs.SetInt("AT3_FirstTankShopGuideDone", 1);
+            PlayerPrefs.Save();
+            shopGuide = false;
+        }
+        if (secondTankGuide && Game.gm != null && Game.gm.unlockedCount >= 2)
+        {
+            PlayerPrefs.SetInt("AT3_SecondTankGuideDone", 1);
+            PlayerPrefs.Save();
+            secondTankGuide = false;
+        }
+        bool managementIntro = PlayerPrefs.GetInt("AT3_ManagementIntroGuideActive", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_ManagementIntroGuideDone", 0) == 0;
+        bool dayEndIntro = PlayerPrefs.GetInt("AT3_EndDayDeskGuideActive", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_EndDayDeskGuideDone", 0) == 0;
+        bool firstNight = PlayerPrefs.GetInt("AT3_FirstNightDeskGuideActive", 0) == 1 &&
+            PlayerPrefs.GetInt("AT3_FirstNightDeskGuideDone", 0) == 0;
+        bool deskGuide = managementIntro || dayEndIntro || firstNight;
+        bool active = Game.player != null && (shopGuide || secondTankGuide || (deskGuide && Game.managerDesk != null));
         endDayGuideGo.SetActive(active);
         if (!active) return;
 
-        Vector3 target = Game.managerDesk.InteractionSpot;
+        Vector3 target;
+        string guideLabel;
+        if (shopGuide)
+        {
+            target = GameBootstrap.GateSignPosition;
+            guideLabel = "DUKKANI AC";
+        }
+        else if (secondTankGuide)
+        {
+            BuyZone plot = BuyZone.FindPlot(1);
+            if (plot == null) { endDayGuideGo.SetActive(false); return; }
+            target = plot.transform.position;
+            guideLabel = "2. AKVARYUMU AC";
+        }
+        else
+        {
+            target = Game.managerDesk.InteractionSpot;
+            guideLabel = managementIntro ? "YONETIM MASASINI KULLAN" : "GUNU BITIRMEK ICIN YONETIM MASANA GIT";
+        }
         float distance = Vector3.Distance(Game.player.transform.position, target);
-        endDayGuideText.text = "GUNU BITIRMEK ICIN YONETIM MASANA GIT  •  " + Mathf.CeilToInt(distance) + "m";
+        endDayGuideText.text = guideLabel + "  -  " + Mathf.CeilToInt(distance) + "m";
 
         Vector2 direction = Vector2.up;
         if (Camera.main != null)
@@ -1203,6 +1319,13 @@ public class UIManager : MonoBehaviour
         }
         if (endDayGuideArrow != null)
             endDayGuideArrow.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        if (endDayGuideDot != null)
+        {
+            Image dot = endDayGuideDot.GetComponent<Image>();
+            float pulse = 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f));
+            dot.color = new Color(1f, 0.78f, 0.12f, pulse);
+            endDayGuideDot.transform.localScale = Vector3.one * (0.85f + pulse * 0.25f);
+        }
     }
 
     void UpdateTechWidgets()
