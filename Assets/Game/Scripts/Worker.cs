@@ -23,6 +23,22 @@ public class Staff : MonoBehaviour
     bool shiftVisible = true;
     bool shiftWorkDiscarded;
     float MoveSpeed { get { return 4.2f * (Game.gm != null ? Game.gm.StaffSpeedMultiplier(role) : 1f); } }
+    public Transform ViewRoot { get { return visual != null ? visual : transform; } }
+    public string CurrentTask
+    {
+        get
+        {
+            if (Game.gm != null && !Game.gm.StaffOnShift) return "Mesai disinda";
+            switch (state)
+            {
+                case S.MoveToWork: return "Goreve gidiyor";
+                case S.Working: return StaffInfo.Descs[role];
+                case S.MoveToDeliver: return "Teslimata gidiyor";
+                case S.Delivering: return "Teslim ediyor";
+                default: return "Yeni gorev bekliyor";
+            }
+        }
+    }
 
     public static Staff Create(int role, Vector3 pos, bool hiredToday = false)
     {
@@ -133,6 +149,33 @@ public class Staff : MonoBehaviour
         Game.staff.Remove(this);
     }
 
+    public void BlastHit(Vector3 origin)
+    {
+        for (int i = 0; i < carriedFish.Count; i++)
+            if (carriedFish[i] != null) carriedFish[i].DieFromPollution();
+        carriedFish.Clear();
+        ClearCrates();
+        Vector3 away = transform.position - origin; away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = Vector3.forward;
+        StartCoroutine(BlastKnockRoutine(away.normalized));
+    }
+
+    System.Collections.IEnumerator BlastKnockRoutine(Vector3 away)
+    {
+        float elapsed = 0f;
+        while (elapsed < 0.75f)
+        {
+            elapsed += Time.deltaTime;
+            transform.position += away * (7f * (1f - elapsed / 0.75f)) * Time.deltaTime;
+            transform.position += Vector3.up * Mathf.Sin(elapsed / 0.75f * Mathf.PI) * 2f * Time.deltaTime;
+            visual.Rotate(Vector3.right, 430f * Time.deltaTime);
+            yield return null;
+        }
+        Vector3 grounded = transform.position; grounded.y = 0f; transform.position = grounded;
+        visual.rotation = Quaternion.identity;
+        state = S.Idle;
+    }
+
     // ---- beach cleaner: clears shore/beach litter ----
     void TickBeachCleaner(float dt) { TickCleaner(dt, false, Game.gm.StaffCapacity(7)); }
 
@@ -228,7 +271,7 @@ public class Staff : MonoBehaviour
     // ---- cashier ----
     void TickCashier(float dt)
     {
-        Vector3 spot = Game.register.OperatorSpot;
+        Vector3 spot = Game.register.OperatorSpotFor(this);
         bool there = MoveTo(spot, dt);
         Game.register.CashierPresent = there;
         if (there)
@@ -247,7 +290,7 @@ public class Staff : MonoBehaviour
             case S.Idle:
                 int fishCapacity = Game.gm.StaffCapacity(1);
                 if (carriedFish.Count >= fishCapacity) { state = S.MoveToDeliver; break; }
-                chaseTarget = Game.sea != null ? Game.sea.FindTarget(RandomSeaPoint(), 40f) : null;
+                chaseTarget = Game.sea != null ? Game.sea.FindWorkerTarget(transform.position, FisherBand(), Game.gm.StaffRadarRange) : null;
                 if (chaseTarget != null) state = S.MoveToWork;
                 else { timer = 2f; state = S.Working; }
                 break;
@@ -301,10 +344,29 @@ public class Staff : MonoBehaviour
         return new Vector3(Random.Range(a.xMin, a.xMin + a.width * 0.5f), 0f, Random.Range(a.yMin, a.yMax));
     }
 
+    int FisherBand()
+    {
+        List<Staff> fishers = new List<Staff>();
+        for (int i = 0; i < Game.staff.Count; i++)
+            if (Game.staff[i] != null && Game.staff[i].role == 1) fishers.Add(Game.staff[i]);
+        fishers.Sort(delegate (Staff a, Staff b) { return a.GetInstanceID().CompareTo(b.GetInstanceID()); });
+        int index = Mathf.Max(0, fishers.IndexOf(this));
+        int count = Mathf.Max(1, fishers.Count);
+        if (count == 1) return Random.Range(0, 3);
+        if (count == 2) return index == 0 ? 0 : 2;
+        if (count == 3) return index == 0 ? 0 : 2;
+        if (count == 4) return index == 0 ? 0 : index == 1 ? 1 : 2;
+        // Five and six workers use a balanced 2 near / 1 middle / rest far split.
+        if (index < 2) return 0;
+        if (index == 2) return 1;
+        return 2;
+    }
+
     Vector3 DeliveryPoint()
     {
-        if (Game.depot != null && Game.depot.HasSpace)
-            return Game.depot.transform.position + new Vector3(0f, 0f, -3f);
+        Depot openDepot = Game.DepotWithSpace(transform.position);
+        if (openDepot != null)
+            return openDepot.transform.position + new Vector3(0f, 0f, -3f);
         Tank best = null;
         for (int i = carriedFish.Count - 1; i >= 0; i--)
         {
@@ -316,11 +378,12 @@ public class Staff : MonoBehaviour
 
     void DeliverFish(Fish f)
     {
-        if (Game.depot != null && Game.depot.HasSpace &&
-            Vector3.Distance(transform.position, Game.depot.transform.position) < 5f)
+        Depot nearbyDepot = Game.NearbyDepot(transform.position, 5f);
+        if (nearbyDepot != null && nearbyDepot.HasSpace)
         {
             int sp = f.species;
-            f.FlyTo(Game.depot.DropPoint(), delegate { Game.depot.StoreVisualArrived(sp); if (f != null) Destroy(f.gameObject); }, 0.5f);
+            Depot targetDepot = nearbyDepot;
+            f.FlyTo(targetDepot.DropPoint(), delegate { targetDepot.StoreVisualArrived(sp); if (f != null) Destroy(f.gameObject); }, 0.5f);
             return;
         }
         Tank t = Game.TankOf(f.species);
@@ -347,11 +410,12 @@ public class Staff : MonoBehaviour
         switch (state)
         {
             case S.Idle:
-                if (Game.depot == null) { timer = 2f; break; }
+                Depot stockDepot = Game.DepotWithStock(transform.position);
+                if (stockDepot == null) { timer = 2f; break; }
                 int sp;
                 if (carriedCrates < Game.gm.StaffCapacity(2) &&
-                    Vector3.Distance(transform.position, Game.depot.transform.position) < 4f &&
-                    Game.depot.TryTakeForTank(out sp))
+                    Vector3.Distance(transform.position, stockDepot.transform.position) < 4f &&
+                    stockDepot.TryTakeForTank(out sp))
                 {
                     crateSpecies = sp;
                     carriedCrates++;
@@ -359,14 +423,15 @@ public class Staff : MonoBehaviour
                     if (carriedCrates >= Game.gm.StaffCapacity(2)) state = S.MoveToDeliver;
                 }
                 else if (carriedCrates > 0) state = S.MoveToDeliver;
-                else MoveTo(Game.depot.transform.position + new Vector3(0f, 0f, -3f), dt);
+                else MoveTo(stockDepot.transform.position + new Vector3(0f, 0f, -3f), dt);
                 break;
 
             case S.MoveToDeliver:
                 targetTank = Game.TankOf(crateSpecies);
                 if (targetTank == null)
                 {
-                    for (int i = 0; i < carriedCrates; i++) Game.depot.Store(crateSpecies);
+                    Depot returnDepot = Game.DepotWithSpace(transform.position);
+                    if (returnDepot != null) for (int i = 0; i < carriedCrates; i++) returnDepot.Store(crateSpecies);
                     ClearCrates();
                     state = S.Idle;
                     break;

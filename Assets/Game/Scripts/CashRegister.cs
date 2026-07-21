@@ -12,9 +12,24 @@ public class CashRegister : MonoBehaviour
     TextMesh pileText, needText;
     bool playerAtSpot;
     bool billRoutineRunning;
+    Transform extraStations;
+    int builtStationCount = -1;
 
     public Vector3 OperatorSpot { get { return transform.position + new Vector3(0f, 0f, 1.35f); } }
-    public bool HasOperator { get { return playerAtSpot || (CashierPresent && Game.gm != null && Game.gm.StaffOnShift); } }
+    public bool HasOperator
+    {
+        get
+        {
+            if (playerAtSpot) return true;
+            if (Game.gm == null || !Game.gm.StaffOnShift) return false;
+            for (int i = 0; i < Game.staff.Count; i++)
+            {
+                Staff s = Game.staff[i];
+                if (s != null && s.role == 0 && Vector3.Distance(s.transform.position, OperatorSpotFor(s)) < 0.9f) return true;
+            }
+            return false;
+        }
+    }
     public bool PlayerAtSpot { get { return playerAtSpot; } }
     public bool PlayerNear(Vector3 position)
     {
@@ -64,6 +79,50 @@ public class CashRegister : MonoBehaviour
         pr.transform.localPosition = new Vector3(-3.6f, 0f, -1.2f);
         pileRoot = pr.transform;
         pileText = B.Text3D("", pileRoot, new Vector3(0f, 3.2f, 0f), 0.12f, new Color(0.55f, 1f, 0.55f));
+        extraStations = new GameObject("ExtraCashierStations").transform;
+        extraStations.SetParent(transform, false);
+        RefreshCashierStations();
+    }
+
+    int CashierOrdinal(Staff target)
+    {
+        int ordinal = 0;
+        for (int i = 0; i < Game.staff.Count; i++)
+        {
+            Staff s = Game.staff[i];
+            if (s == null || s.role != 0) continue;
+            if (s == target) return ordinal;
+            ordinal++;
+        }
+        return ordinal;
+    }
+
+    public Vector3 OperatorSpotFor(Staff cashier)
+    {
+        int ordinal = CashierOrdinal(cashier);
+        return OperatorSpot + new Vector3(0f, 0f, ordinal * 14f);
+    }
+
+    public void RefreshCashierStations()
+    {
+        if (extraStations == null || Game.gm == null) return;
+        int wanted = Mathf.Clamp(Game.gm.staffCounts[0], 0, 5);
+        if (wanted == builtStationCount) return;
+        for (int i = extraStations.childCount - 1; i >= 0; i--) Destroy(extraStations.GetChild(i).gameObject);
+        builtStationCount = wanted;
+        Material wood = MatLib.Get(new Color(0.5f, 0.33f, 0.22f));
+        Material top = MatLib.Get(new Color(0.95f, 0.95f, 0.98f));
+        Material dark = MatLib.Get(new Color(0.12f, 0.12f, 0.16f));
+        for (int i = 1; i < wanted; i++)
+        {
+            Transform station = new GameObject("CashierStation_" + (i + 1)).transform;
+            station.SetParent(extraStations, false);
+            station.localPosition = new Vector3(0f, 0f, i * 14f);
+            B.Prim(PrimitiveType.Cube, "Desk", station, new Vector3(0f, 0.6f, 0f), Vector3.zero, new Vector3(3.2f, 1.2f, 1.2f), wood, true);
+            B.Prim(PrimitiveType.Cube, "Top", station, new Vector3(0f, 1.28f, 0f), Vector3.zero, new Vector3(3.4f, 0.16f, 1.4f), top);
+            B.Prim(PrimitiveType.Cube, "POS", station, new Vector3(0.65f, 1.55f, 0f), new Vector3(-15f, 180f, 0f), new Vector3(0.62f, 0.48f, 0.12f), dark);
+            B.Text3D("KASA " + (i + 1), station, new Vector3(0f, 2.45f, 0f), 0.075f, new Color(1f, 0.95f, 0.5f));
+        }
     }
 
     // ---------- queue ----------
@@ -161,6 +220,7 @@ public class CashRegister : MonoBehaviour
     void Update()
     {
         if (Game.player == null) return;
+        RefreshCashierStations();
         playerAtSpot = Vector3.Distance(Game.player.transform.position, OperatorSpot) < 0.75f;
 
         if (needText != null)

@@ -3,7 +3,6 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    const int TrashCarryLimit = 5;
     public Transform stackAnchor;
     public Transform visual;
     public Jetski jetski; // mounted jetski (bought on the PC)
@@ -39,6 +38,15 @@ public class PlayerController : MonoBehaviour
 
     public int CarryCount { get { return carried.Count; } }
     public int HeldTrashCount { get { return heldTrash.Count; } }
+    public int HeldPoopCount
+    {
+        get
+        {
+            int count = 0;
+            for (int i = 0; i < heldTrash.Count; i++) if (heldTrash[i] != null && heldTrash[i].IsPoop) count++;
+            return count;
+        }
+    }
     public bool IsFull { get { return carried.Count >= Game.gm.Capacity; } }
     public bool CanUseDeskInteraction { get { return !deskSeated && Time.unscaledTime >= deskInteractionBlockedUntil; } }
 
@@ -250,7 +258,7 @@ public class PlayerController : MonoBehaviour
         if (Game.cam != null && Game.cam.IsTPS)
             dir = Quaternion.Euler(0f, Game.cam.TPSYaw, 0f) * dir; // camera-relative TPS controls
         float speed = Swimming ? (jetski != null ? Game.gm.MoveSpeed * Game.gm.JetskiSpeedMultiplier : Game.gm.SwimSpeed) : Game.gm.MoveSpeed;
-        if (!Swimming && Game.gm.SprintUnlocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+        if (Game.gm.SprintUnlocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
             speed *= Game.gm.SprintMultiplier;
         cc.Move((dir * speed + Vector3.down * 15f) * dt);
 
@@ -296,6 +304,7 @@ public class PlayerController : MonoBehaviour
         }
         float best = Game.gm != null ? Game.gm.PlayerWeaponRange : 2.8f;
         Thief hitThief = null;
+        Terrorist hitTerrorist = null;
         Customer hitCustomer = null;
         Thief[] thieves = FindObjectsByType<Thief>(FindObjectsSortMode.None);
         for (int i = 0; i < thieves.Length; i++)
@@ -306,16 +315,25 @@ public class PlayerController : MonoBehaviour
             if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
             { best = d; hitThief = thieves[i]; hitCustomer = null; }
         }
+        Terrorist[] terrorists = FindObjectsByType<Terrorist>(FindObjectsSortMode.None);
+        for (int i = 0; i < terrorists.Length; i++)
+        {
+            Vector3 to = terrorists[i].transform.position - transform.position; to.y = 0f;
+            float d = to.magnitude;
+            if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
+            { best = d; hitTerrorist = terrorists[i]; hitThief = null; hitCustomer = null; }
+        }
         Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
         for (int i = 0; i < customers.Length; i++)
         {
             Vector3 to = customers[i].transform.position - transform.position; to.y = 0f;
             float d = to.magnitude;
             if (d < best && (d < 1f || Vector3.Angle(facing, to) < 75f))
-            { best = d; hitCustomer = customers[i]; hitThief = null; }
+            { best = d; hitCustomer = customers[i]; hitThief = null; hitTerrorist = null; }
         }
 
-        if (hitThief != null) hitThief.PlayerHit(transform.position, Game.gm != null ? Game.gm.PlayerWeaponDamage : 1);
+        if (hitTerrorist != null) hitTerrorist.PlayerHit(transform.position, Game.gm != null ? Game.gm.PlayerWeaponDamage : 1);
+        else if (hitThief != null) hitThief.PlayerHit(transform.position, Game.gm != null ? Game.gm.PlayerWeaponDamage : 1);
         else if (hitCustomer != null) hitCustomer.HitByPlayer(transform.position);
         else Sfx.Play(Snd.Throw, 0.28f);
     }
@@ -425,8 +443,14 @@ public class PlayerController : MonoBehaviour
                 prompt = interactKey + " : Rampayi tamir et  $" + B.Money(Game.ramp.RepairCost);
             else if (Game.jetski != null && Game.jetski.Broken && Game.jetski.PlayerNear(transform.position))
                 prompt = interactKey + " : Jetski tamir et  $" + B.Money(Game.jetski.RepairCost);
+            else if (Game.mechanicsDesk != null && Game.mechanicsDesk.PlayerNear(transform.position))
+                prompt = interactKey + " : Mekanik Veritabanini ac";
             else if (Game.cameraDesk != null && Game.cameraDesk.PlayerNear(transform.position))
                 prompt = interactKey + " : Guvenlik kameralarini izle";
+            else if (Game.marketingDesk != null && Game.marketingDesk.PlayerNear(transform.position))
+                prompt = interactKey + " : Pazarlama kampanyalarini ac";
+            else if (Game.NearbyDepot(transform.position, 4.5f) != null)
+                prompt = interactKey + " : Depodan balik al  (" + CarryCount + "/" + Game.gm.Capacity + ")";
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
                 prompt = interactKey + " : Yonetim PC'sini Ac";
             else if (Game.register != null && Game.register.PlayerNear(transform.position))
@@ -450,10 +474,25 @@ public class PlayerController : MonoBehaviour
             {
                 Game.jetski.TryRepair();
             }
+            else if (Game.mechanicsDesk != null && Game.mechanicsDesk.PlayerNear(transform.position))
+            {
+                Game.ui.SetPrompt(null);
+                Game.mechanicsDesk.Open();
+            }
             else if (Game.cameraDesk != null && Game.cameraDesk.PlayerNear(transform.position))
             {
                 Game.ui.SetPrompt(null);
                 Game.cameraDesk.OpenViewer();
+            }
+            else if (Game.marketingDesk != null && Game.marketingDesk.PlayerNear(transform.position))
+            {
+                Game.ui.SetPrompt(null);
+                Game.marketingDesk.Open();
+            }
+            else if (Game.NearbyDepot(transform.position, 4.5f) != null)
+            {
+                int taken = TakeFishFromDepot();
+                Game.ui.Toast(taken > 0 ? "Depodan " + taken + " balik aldin." : IsFull ? "Tasima kapasiten dolu." : "Depoda alinacak balik yok.", 3f);
             }
             else if (Game.managerDesk != null && Game.managerDesk.PlayerNear)
             {
@@ -478,6 +517,23 @@ public class PlayerController : MonoBehaviour
                 Sfx.Play(Snd.ShopToggle, 0.65f);
             }
         }
+    }
+
+    int TakeFishFromDepot()
+    {
+        int taken = 0;
+        Depot depot = Game.NearbyDepot(transform.position, 4.5f);
+        while (!IsFull && depot != null)
+        {
+            int species;
+            if (!depot.TryTakeAny(out species)) break;
+            Fish fish = Fish.Create(species, stackAnchor.position + Vector3.up * (carried.Count * 0.32f));
+            fish.SetCarried(stackAnchor, carried.Count);
+            carried.Add(fish);
+            taken++;
+        }
+        if (taken > 0) Sfx.Play(Snd.Collect, 0.7f);
+        return taken;
     }
 
     // ---------- radar catching ----------
@@ -522,7 +578,7 @@ public class PlayerController : MonoBehaviour
                 (autoRadar || Vector3.Angle(aim, Flat(target.transform.position - transform.position)) < 45f))
                 newTarget = target;
             else
-                newTarget = Game.sea.FindTargetInCone(transform.position, aim, range, 30f);
+                newTarget = Game.sea.FindTargetInCone(transform.position, aim, range, Game.gm.RadarHalfAngle);
         }
 
         if (newTarget != target)
@@ -642,7 +698,8 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        if (Game.depot != null && Vector3.Distance(transform.position, Game.depot.transform.position) < 3.5f && Game.depot.HasSpace)
+        Depot nearbyDepot = Game.NearbyDepot(transform.position, 3.5f);
+        if (nearbyDepot != null && nearbyDepot.HasSpace)
         {
             depositTimer = 0.13f;
             int last = carried.Count - 1;
@@ -650,7 +707,8 @@ public class PlayerController : MonoBehaviour
             carried.RemoveAt(last);
             Reindex();
             int sp = f.species;
-            f.FlyTo(Game.depot.DropPoint(), delegate { Game.depot.StoreVisualArrived(sp); if (f != null) Destroy(f.gameObject); }, 0.5f);
+            Depot targetDepot = nearbyDepot;
+            f.FlyTo(targetDepot.DropPoint(), delegate { targetDepot.StoreVisualArrived(sp); if (f != null) Destroy(f.gameObject); }, 0.5f);
         }
     }
 
@@ -674,7 +732,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Game.trash == null) return;
 
-        if (!dumpingTrash && heldTrash.Count < TrashCarryLimit)
+        if (!dumpingTrash && heldTrash.Count < Game.gm.TrashCapacity)
         {
             TrashItem t = Game.trash.FindNear(transform.position, 1.5f, Swimming);
             if (t != null)
@@ -778,6 +836,17 @@ public class PlayerBullet : MonoBehaviour
             if (thieves[i] != null && thieves[i].IsRevealed && DistanceToSegment(thieves[i].transform.position + Vector3.up, transform.position, next) < 0.9f)
             {
                 thieves[i].PlayerHit(transform.position - velocity.normalized, Game.gm.PlayerWeaponDamage);
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        Terrorist[] terrorists = FindObjectsByType<Terrorist>(FindObjectsSortMode.None);
+        for (int i = 0; i < terrorists.Length; i++)
+        {
+            if (terrorists[i] != null && DistanceToSegment(terrorists[i].transform.position + Vector3.up, transform.position, next) < 0.9f)
+            {
+                terrorists[i].PlayerHit(transform.position - velocity.normalized, Game.gm.PlayerWeaponDamage);
                 Destroy(gameObject);
                 return;
             }

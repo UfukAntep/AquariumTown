@@ -13,6 +13,7 @@ public static class Game
     public static PCScreen pc;
     public static Sea sea;
     public static Depot depot;
+    public static List<Depot> depots = new List<Depot>();
     public static TrashSystem trash;
     public static Toilets toilets;
     public static CameraRig cam;
@@ -21,6 +22,8 @@ public static class Game
     public static RampZone ramp;
     public static GeneratorUnit generator;
     public static CameraDeskUnit cameraDesk;
+    public static MarketingDesk marketingDesk;
+    public static MechanicsDeskUnit mechanicsDesk;
     public static Transform world;
     public static List<Tank> tanks = new List<Tank>();
     public static List<Staff> staff = new List<Staff>();
@@ -28,10 +31,43 @@ public static class Game
     public static void Clear()
     {
         gm = null; player = null; register = null; managerDesk = null; ui = null; pc = null; sea = null;
-        depot = null; trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; generator = null; cameraDesk = null; world = null;
+        depot = null; depots = new List<Depot>(); trash = null; toilets = null; cam = null; events = null; jetski = null; ramp = null; generator = null; cameraDesk = null; marketingDesk = null; world = null;
         tanks = new List<Tank>();
         staff = new List<Staff>();
         TrophySystem.ClearRuntime();
+    }
+
+    public static Depot DepotWithSpace(Vector3 from)
+    {
+        Depot best = null; float bestD = float.MaxValue;
+        for (int i = 0; i < depots.Count; i++)
+        {
+            Depot d = depots[i];
+            if (d == null || !d.HasSpace) continue;
+            float distance = (d.transform.position - from).sqrMagnitude;
+            if (distance < bestD) { best = d; bestD = distance; }
+        }
+        return best;
+    }
+
+    public static Depot DepotWithStock(Vector3 from)
+    {
+        Depot best = null; float bestD = float.MaxValue;
+        for (int i = 0; i < depots.Count; i++)
+        {
+            Depot d = depots[i];
+            if (d == null || d.Total <= 0) continue;
+            float distance = (d.transform.position - from).sqrMagnitude;
+            if (distance < bestD) { best = d; bestD = distance; }
+        }
+        return best;
+    }
+
+    public static Depot NearbyDepot(Vector3 from, float radius)
+    {
+        for (int i = 0; i < depots.Count; i++)
+            if (depots[i] != null && Vector3.Distance(from, depots[i].transform.position) <= radius) return depots[i];
+        return null;
     }
 
     public static Tank TankOf(int sp)
@@ -190,7 +226,8 @@ public static class SpeciesInfo
 public enum Upg
 {
     Capacity = 0, MoveSpeed = 1, SwimSpeed = 2, RadarSpeed = 3, RadarRange = 4,
-    TipChance = 5, CustSpeed = 6, ExtraCash = 7, Sprint = 8
+    TipChance = 5, CustSpeed = 6, ExtraCash = 7, Sprint = 8,
+    RadarArea = 9, TrashCapacity = 10
 }
 
 public enum ControlAction
@@ -256,15 +293,16 @@ public static class ControlBindings
 
 public static class UpgInfo
 {
-    public static readonly int Count = 9;
-    static readonly string[] label = { "CANTA", "KOSU HIZI", "YUZME HIZI", "RADAR HIZI", "RADAR MENZILI", "BAHSIS", "MUSTERI HIZI", "EKSTRA PARA", "DEPAR" };
+    public static readonly int Count = 11;
+    static readonly string[] label = { "CANTA", "KOSU HIZI", "YUZME HIZI", "RADAR HIZI", "RADAR MENZILI", "BAHSIS", "MUSTERI HIZI", "EKSTRA PARA", "DEPAR", "RADAR ALANI", "COP CANTASI" };
     static readonly string[] desc = {
         "+3 balik tasima kapasitesi", "+%8 kosu hizi", "+%10 yuzme hizi", "+%12 deniz tarama hizi",
         "+0.5 deniz radar menzili", "+%6 musteri bahsis sansi", "+%10 musteri hareket hizi", "+%10 daha fazla satis geliri",
-        "Shift basiliyken hizli kos; her seviye depari hizlandirir" };
-    static readonly int[] baseCost = { 40, 60, 60, 80, 80, 120, 100, 150, 220 };
-    static readonly float[] mult = { 1.9f, 1.8f, 1.8f, 1.9f, 1.9f, 2.0f, 1.9f, 2.1f, 2.2f };
-    static readonly int[] max = { 15, 12, 12, 10, 10, 8, 8, 10, 5 };
+        "Shift basiliyken hizli kos ve yuz; her seviye depari hizlandirir",
+        "Radar tarama acisini genisletir", "+1 cop ve kaka tasima kapasitesi" };
+    static readonly int[] baseCost = { 40, 60, 60, 80, 80, 120, 100, 150, 220, 180, 140 };
+    static readonly float[] mult = { 1.9f, 1.8f, 1.8f, 1.9f, 1.9f, 2.0f, 1.9f, 2.1f, 2.2f, 2.0f, 1.9f };
+    static readonly int[] max = { 15, 12, 12, 10, 10, 8, 8, 10, 5, 5, 5 };
 
     public static string Label(Upg u) { return label[(int)u]; }
     public static string Desc(Upg u) { return desc[(int)u]; }
@@ -280,12 +318,14 @@ public static class StaffInfo
     // roles: 0 cashier,1 fisher,2 carrier,3 janitor,4 sea cleaner,5 toilet cleaner,6 security,7 beach cleaner,8 electrician
     public static readonly string[] Names = { "KASIYER", "AVCI", "TASIYICI", "TEMIZLIKCI", "DENIZ TEMIZLIGI", "TUVALETCI", "GUVENLIK", "SAHIL TEMIZLIGI", "ELEKTRIK TEKNISYENI" };
     public static readonly string[] Descs = {
-        "Kasada calisir (maks 1)", "Denizden balik toplar", "Depodan tanklara tasir",
+        "Kasada calisir; her kasiyere yeni kasa acilir", "Denizden balik toplar", "Depodan tanklara tasir",
         "Magaza coplerini toplar", "Denizdeki copleri toplar", "Tuvaletleri temizler",
         "Hirsizlari dover ve caldigini geri koyar", "Sahildeki copleri toplar", "Kesintide jeneratore kosup elektrigi geri getirir" };
     // paid as a DAILY SALARY (deducted every day-end), not a one-time fee
     public static readonly int[] Salary = { 120, 260, 200, 90, 170, 110, 300, 140, 240 };
-    public static readonly int[] MaxCount = { 1, 6, 4, 4, 4, 3, 3, 3, 2 };
+    // Original role limits multiplied by eight. Cashiers are the one explicit
+    // exception: the checkout layout supports a maximum of five stations.
+    public static readonly int[] MaxCount = { 5, 48, 32, 32, 32, 24, 24, 24, 16 };
 }
 
 // ---------- Decor & equipment items (bought on the PC) ----------

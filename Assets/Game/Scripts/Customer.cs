@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Customer : MonoBehaviour
 {
-    public enum CState { Enter, PickTank, WalkToTank, Browse, ToQueue, Paying, ToToilet, InToilet, ReturnFish, Exit, ExitSad }
+    public enum CState { Enter, PickTank, WalkToTank, Browse, ToQueue, Paying, ToToilet, InToilet, ToSink, InSink, ReturnFish, Exit, ExitSad }
 
     public CState state = CState.Enter;
     Tank targetTank;
@@ -29,13 +29,19 @@ public class Customer : MonoBehaviour
         return SpawnInternal(true, teacher);
     }
 
-    static Customer SpawnInternal(bool school, bool teacher)
+    public static Customer SpawnInfluencer(bool photographer)
+    {
+        return SpawnInternal(false, false, photographer ? 2 : 1);
+    }
+
+    static Customer SpawnInternal(bool school, bool teacher, int special = 0)
     {
         GameObject go = new GameObject("Customer");
         go.transform.position = DoorPos + new Vector3(Random.Range(-1f, 3f), 0f, Random.Range(-1.5f, 1.5f));
         Customer c = go.AddComponent<Customer>();
         c.schoolTrip = school;
         c.schoolTeacher = teacher;
+        c.specialVisitor = special;
         if (Game.gm != null) Game.gm.RegisterCustomerArrival();
         c.Build();
         return c;
@@ -45,10 +51,14 @@ public class Customer : MonoBehaviour
     bool bought;        // successfully purchased -> happy review
     bool reviewed;
     bool toiletChecked;
+    bool toiletReserved;
+    bool toiletAccident;
+    float toiletQueueWait;
     bool attacked;
     bool dead;
     bool schoolTrip;
     bool schoolTeacher;
+    int specialVisitor;
     float deathTimer;
     float knockTime;
     float attackedRecovery;
@@ -74,11 +84,25 @@ public class Customer : MonoBehaviour
             : Random.value < 0.85f
                 ? new Color(0.35f, 0.5f, Random.Range(0.85f, 1f))
                 : Color.HSVToRGB(Random.value, 0.5f, 0.95f);
+        if (specialVisitor == 1) { col = new Color(0.07f, 0.09f, 0.15f); vip = false; }
+        else if (specialVisitor == 2) { col = new Color(0.32f, 0.34f, 0.4f); vip = false; }
         float characterScale = schoolTrip && !schoolTeacher ? 0.76f : vip ? 1.15f : 1f;
         B.Stickman(visual, schoolTrip ? (schoolTeacher ? new Color(0.25f, 0.4f, 0.78f) : new Color(0.95f, 0.55f, 0.2f)) : col, characterScale);
         if (vip) B.Text3D("VIP", transform, new Vector3(0f, 3.1f, 0f), 0.1f, new Color(1f, 0.85f, 0.2f));
         if (schoolTrip) B.Text3D(schoolTeacher ? "OGRETMEN" : "OGRENCI", transform,
             new Vector3(0f, schoolTeacher ? 3.05f : 2.55f, 0f), 0.06f, schoolTeacher ? UIKit.Blue : UIKit.Orange);
+        if (specialVisitor == 1)
+        {
+            B.Text3D("INFLUENCER", transform, new Vector3(0f, 3.05f, 0f), 0.065f, UIKit.Yellow);
+            B.Prim(PrimitiveType.Cube, "SuitJacket", visual, new Vector3(0f, 1.25f, 0f), Vector3.zero,
+                new Vector3(0.75f, 0.8f, 0.42f), MatLib.Get(new Color(0.05f, 0.07f, 0.13f)));
+        }
+        else if (specialVisitor == 2)
+        {
+            B.Text3D("FOTOGRAFCI", transform, new Vector3(0f, 2.85f, 0f), 0.052f, Color.white);
+            B.Prim(PrimitiveType.Cube, "Camera", visual, new Vector3(0.42f, 1.55f, 0.28f), Vector3.zero,
+                new Vector3(0.38f, 0.28f, 0.28f), MatLib.Get(new Color(0.08f, 0.08f, 0.1f)));
+        }
         bubble = B.Text3D("", transform, new Vector3(0f, 2.6f, 0f), 0.09f, Color.white);
         moveTarget = GateInside;
 
@@ -241,16 +265,66 @@ public class Customer : MonoBehaviour
             case CState.ToToilet:
                 if (MoveTo(moveTarget, dt))
                 {
-                    Game.toilets.Use();
-                    timer = 2.5f;
-                    state = CState.InToilet;
-                    bubble.text = "~";
+                    if (!toiletReserved)
+                    {
+                        Vector3 cabin;
+                        if (Game.toilets.TryBeginToilet(this, out cabin))
+                        {
+                            toiletReserved = true;
+                            moveTarget = cabin;
+                            bubble.text = "";
+                        }
+                        else
+                        {
+                            toiletQueueWait += dt;
+                            bubble.text = "Tuvalet sirasi...";
+                            bubble.color = UIKit.Orange;
+                            if (toiletQueueWait > 6f)
+                            {
+                                if (!toiletAccident) { Game.toilets.QueueAccident(transform.position); toiletAccident = true; }
+                                Game.gm.AddSatisfaction(-3f);
+                                LeaveReview(false);
+                                bubble.text = "Cok bekledim!";
+                                state = CState.PickTank;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        timer = Random.Range(2.5f, 4.5f);
+                        state = CState.InToilet;
+                        bubble.text = "~";
+                    }
                 }
                 break;
 
             case CState.InToilet:
                 timer -= dt;
-                if (timer <= 0f) { bubble.text = ""; state = CState.PickTank; }
+                if (timer <= 0f)
+                {
+                    Game.toilets.FinishToilet(this);
+                    toiletReserved = false;
+                    Vector3 sink;
+                    if (Game.toilets.TryBeginSink(this, out sink)) { moveTarget = sink; state = CState.ToSink; }
+                    else { Game.gm.AddSatisfaction(-1f); bubble.text = "Lavabo sirasi!"; state = CState.PickTank; }
+                }
+                break;
+
+            case CState.ToSink:
+                if (MoveTo(moveTarget, dt)) { timer = 1.6f; state = CState.InSink; bubble.text = "El yikiyor"; bubble.color = new Color(0.4f, 0.75f, 1f); }
+                break;
+
+            case CState.InSink:
+                timer -= dt;
+                if (timer <= 0f)
+                {
+                    Game.toilets.FinishSink(this);
+                    bubble.text = "Temiz tuvalet!";
+                    bubble.color = UIKit.Green;
+                    Game.gm.AddSatisfaction(0.5f);
+                    if (Random.value < 0.18f) LeaveReview(true);
+                    state = CState.PickTank;
+                }
                 break;
 
             case CState.PickTank:
@@ -387,6 +461,7 @@ public class Customer : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Game.toilets != null) { Game.toilets.FinishToilet(this); Game.toilets.FinishSink(this); }
         if (Game.register != null) Game.register.Leave(this);
         // leave a star review on the way out (only ~35% do, to avoid spam)
         if (!reviewed && Game.gm != null)
@@ -422,10 +497,12 @@ public class CustomerManager : MonoBehaviour
 
         // Customers still enter an empty shop and discover that there is no
         // stock; otherwise an open shop can look broken before the first catch.
-        if (alive < 10)
+        int aliveLimit = Mathf.Clamp(8 + Game.gm.Level / 3, 8, 28);
+        if (alive < aliveLimit)
         {
             Customer.Spawn();
-            float interval = Mathf.Clamp(7f - stockedTanks * 0.5f, 1.8f, 7f);
+            float popularityInterval = 1200f / Mathf.Max(1, Game.gm.DailyPopularity);
+            float interval = Mathf.Clamp(popularityInterval - stockedTanks * 0.08f, 1.8f, 12f);
             if (Game.trash != null && Game.trash.Count >= 5) interval *= 1.8f;
             timer = interval;
         }

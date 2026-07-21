@@ -148,7 +148,8 @@ public class Tank : MonoBehaviour
         {
             // Defensive fallback. Normal delivery paths reserve first, but this
             // keeps capacity strict if a future caller forgets to do so.
-            if (Game.depot != null && Game.depot.HasSpace) Game.depot.Store(f.species);
+            Depot depot = Game.DepotWithSpace(transform.position);
+            if (depot != null) depot.Store(f.species);
             f.Die();
             UpdateText();
             return;

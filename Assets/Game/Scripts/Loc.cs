@@ -172,12 +172,12 @@ public static class Loc
         En("CALISAN VARDIYASI", "STAFF SHIFTS");
         En("CALISANLAR PAYDOS ETTI", "STAFF HAVE CLOCKED OUT");
         En("GECE DENIZ TEHLIKELI", "THE SEA IS DANGEROUS AT NIGHT");
-        En("Calisanlar her sabah 08:00'de ise gelir ve aksam 20:00'de evlerine gider.",
-            "Staff arrive at 08:00 and go home at 20:00 every day.");
+        En("Calisanlar her sabah 08:00'de ise gelir ve aksam 21:00'de evlerine gider.",
+            "Staff arrive at 08:00 and go home at 21:00 every day.");
         En("Ise alirken bugunun maasi hemen odenir; sonraki maaslar gun sonunda kesilir.",
             "Today's wage is paid immediately when hiring; later wages are charged at day end.");
-        En("Saat 20:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.",
-            "It is 20:00; staff are going home and will return at 08:00.");
+        En("Saat 21:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.",
+            "It is 21:00; staff are going home and will return at 08:00.");
         En("Saat 22:00'dan sonra deniz tehlikelidir.", "The sea is dangerous after 22:00.");
         En("Islerini 22:00'dan once bitir ve gunu bitirmeyi unutma.",
             "Finish your work before 22:00 and remember to end the day.");
@@ -187,12 +187,12 @@ public static class Loc
         En("Yeni calisanin bugunku maasi ise alirken kesilir",
             "A new employee's wage for today is charged when hired");
         En("BUGUN", "TODAY");
-        En("Calisanlarin her sabah 07:00'de ise gelir ve aksam 21:00'de evlerine gider.",
-            "Staff arrive at 07:00 and go home at 21:00 every day.");
+        En("Calisanlar her sabah 08:00'de ise gelir ve aksam 21:00'de evlerine gider.",
+            "Staff arrive at 08:00 and go home at 21:00 every day.");
         En("Mesai disinda calismazlar; gunluk maaslari gun sonunda odenir.",
             "They do not work off shift; daily wages are paid at day end.");
         En("Saat 21:00 oldu; calisanlar evlerine gidiyor.", "It is 21:00; staff are going home.");
-        En("Her sabah 07:00'de yeniden ise gelecekler.", "They will return at 07:00 every morning.");
+        En("Her sabah 08:00'de yeniden ise gelecekler.", "They will return at 08:00 every morning.");
         En("Hirsiz baliklarinizi veya paralarinizi calabilir.", "A thief can steal your fish or money.");
         En("Onu kovala ve farenin SAG TIK tusuyla veya SPACE ile vur!",
             "Chase him and hit him with RIGHT CLICK or SPACE!");

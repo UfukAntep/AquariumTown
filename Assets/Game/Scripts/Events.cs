@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Random events and first-two-hour mechanic introductions.
@@ -6,6 +7,8 @@ public class EventManager : MonoBehaviour
     float eventTimer;
     public bool PowerOutageActive { get; private set; }
     Coroutine outageRoutine;
+    readonly int[] lastEventRoll = new int[10];
+    int eventRoll;
 
     public static EventManager Create(Transform parent)
     {
@@ -14,6 +17,7 @@ public class EventManager : MonoBehaviour
         EventManager e = go.AddComponent<EventManager>();
         Game.events = e;
         e.eventTimer = Random.Range(60f, 120f);
+        for (int i = 0; i < e.lastEventRoll.Length; i++) e.lastEventRoll[i] = -Random.Range(0, 5);
         return e;
     }
 
@@ -29,6 +33,61 @@ public class EventManager : MonoBehaviour
 
     void TriggerRandom()
     {
+        eventRoll++;
+        List<int> eligible = new List<int> { 0, 1, 2, 3, 4, 5 };
+        if (Game.gm.Level >= 16) eligible.Add(6);
+        if (Game.gm.Level >= 20) eligible.Add(7);
+        if (Game.gm.Level >= 23) eligible.Add(8);
+        if (Game.gm.Level >= 35) eligible.Add(9);
+
+        // Fair-event protection: once an eligible event has missed roughly a
+        // full rotation, the oldest one is selected instead of allowing thief
+        // rolls to repeat indefinitely.
+        int selected = -1;
+        int oldestAge = -1;
+        for (int i = 0; i < eligible.Count; i++)
+        {
+            int id = eligible[i];
+            int age = eventRoll - lastEventRoll[id];
+            if (age >= Mathf.Max(4, eligible.Count - 1) && age > oldestAge)
+            {
+                selected = id;
+                oldestAge = age;
+            }
+        }
+        if (selected < 0)
+        {
+            float r = Random.value;
+            if (r < 0.20f) selected = 0;
+            else if (r < 0.37f) selected = 1;
+            else if (r < 0.48f) selected = 2;
+            else if (r < 0.53f) selected = 3;
+            else if (r < 0.64f) selected = 4;
+            else if (r < 0.75f) selected = 5;
+            else if (r < 0.84f && eligible.Contains(6)) selected = 6;
+            else if (r < 0.93f && eligible.Contains(7)) selected = 7;
+            else if (r < 0.97f && eligible.Contains(8)) selected = 8;
+            else if (eligible.Contains(9)) selected = 9;
+            else if (eligible.Contains(8)) selected = 8;
+            else selected = eligible[Random.Range(0, eligible.Count)];
+        }
+        lastEventRoll[selected] = eventRoll;
+        switch (selected)
+        {
+            case 0: SpawnThief(); break;
+            case 1: TriggerShark(); break;
+            case 2: TriggerQuake(); break;
+            case 3: TriggerGoldenFish(); break;
+            case 4: TriggerMoneyAid(); break;
+            case 5: TriggerMoneyRain(); break;
+            case 6: TriggerPowerOutage(); break;
+            case 7: TriggerSchoolTrip(); break;
+            case 8: TriggerStorm(); break;
+            case 9: TriggerTerrorist(); break;
+        }
+        /* Legacy probability table retained below only in version history. */
+        return;
+#if false
         float r = Random.value;
         // Fixed, readable chances per event roll. Locked event slices fall
         // back to a harmless bonus instead of inflating another danger rate.
@@ -49,6 +108,7 @@ public class EventManager : MonoBehaviour
         {
             if (Game.gm.Level >= 23) TriggerStorm(); else TriggerGoldenFish();
         }
+#endif
     }
 
     public void SpawnThief(bool force = false)
@@ -64,9 +124,46 @@ public class EventManager : MonoBehaviour
         else Thief.Spawn(force);
     }
 
+    public void TriggerTerrorist(bool force = false)
+    {
+        if (Game.gm == null || (!force && Game.gm.Level < 35)) return;
+        if (FindFirstObjectByType<Terrorist>() != null) return;
+        PlayerPrefs.SetInt("AT3_TerroristOccurred", 1);
+        PlayerPrefs.Save();
+        Terrorist.Spawn(force);
+    }
+
     public void TriggerShark()
     {
         if (Game.player == null || Game.sea == null) return;
+        Sfx.Play(Snd.Shark, 0.95f);
+        Sfx.DangerFor(6f);
+        if (!Game.player.Swimming)
+        {
+            if (Game.ui != null) Game.ui.Toast("KOPEKBALIGI TEHLIKESI! 10 saniye icinde denize girersen seni bulur.", 6f);
+            StartCoroutine(SharkEntryWindow());
+            return;
+        }
+        SpawnSharkAttack();
+    }
+
+    System.Collections.IEnumerator SharkEntryWindow()
+    {
+        float until = Time.time + 10f;
+        while (Time.time < until)
+        {
+            if (Game.player != null && Game.player.Swimming)
+            {
+                SpawnSharkAttack();
+                yield break;
+            }
+            yield return null;
+        }
+    }
+
+    void SpawnSharkAttack()
+    {
+        if (Game.player == null) return;
         int count = Game.player.jetski != null ? 5 : 1;
         for (int i = 0; i < count; i++) Shark.Spawn(Game.player.transform.position, i == 0);
     }
@@ -119,7 +216,7 @@ public class EventManager : MonoBehaviour
         Sfx.Play(Snd.Collect, 0.7f);
     }
 
-    public void TriggerMoneyRain(bool force = false)
+    public void TriggerMoneyAid(bool force = false)
     {
         if (Game.register == null) return;
         // Random donations require a customer; the one-time level lesson is
@@ -127,9 +224,21 @@ public class EventManager : MonoBehaviour
         if (!force && Game.register.QueueCount == 0) { TriggerGoldenFish(); return; }
         int bonus = 20 + Game.gm.Level * 10;
         Game.register.Pay(bonus, false);
+        PlayerPrefs.SetInt("AT3_MoneyAidOccurred", 1);
+        PlayerPrefs.Save();
+        if (Game.ui != null) Game.ui.Toast("PARA YARDIMI! Kasaya $" + bonus + " birakildi; yerden topla!", 5f);
+        Sfx.Play(Snd.MoneyPickup, 1f);
+    }
+
+    public void TriggerMoneyRain(bool force = false)
+    {
+        if (Game.gm == null) return;
+        int count = Mathf.Clamp(18 + Game.gm.Level, 20, 55);
+        int value = Mathf.Clamp(1 + Game.gm.Level / 5, 1, 20);
+        for (int i = 0; i < count; i++) MoneyRainPickup.Spawn(value, i * 0.055f);
         PlayerPrefs.SetInt("AT3_MoneyRainOccurred", 1);
         PlayerPrefs.Save();
-        if (Game.ui != null) Game.ui.Toast("PARA YAGMURU! Yerdeki paralari topla! +" + bonus + "$", 5f);
+        if (Game.ui != null) Game.ui.Toast("PARA YAGMURU! Haritaya dusen paralari senden once baskalari da toplayabilir!", 6f);
         Sfx.Play(Snd.MoneyPickup, 1f);
     }
 
@@ -303,7 +412,7 @@ public class Thief : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "Mask", visual, new Vector3(0f, 1.8f, 0.22f), Vector3.zero, new Vector3(0.5f, 0.15f, 0.2f), MatLib.Get(new Color(0.9f, 0.2f, 0.2f)));
         B.Text3D("HIRSIZ!", transform, new Vector3(0f, 2.7f, 0f), 0.1f, new Color(1f, 0.3f, 0.3f));
         weapon = forcedWeapon >= 0 ? (Weapon)Mathf.Clamp(forcedWeapon, 0, 2) :
-            Game.gm.Level >= 25 ? Weapon.Gun : Game.gm.Level >= 10 ? Weapon.Baton : Weapon.None;
+            Game.gm.Level >= 25 ? Weapon.Gun : Game.gm.Level >= 13 ? Weapon.Baton : Weapon.None;
         maxHealth = weapon == Weapon.Gun ? 10 : weapon == Weapon.Baton ? 5 : 1;
         health = maxHealth;
         BuildHealthBar();
@@ -834,6 +943,68 @@ public class ThiefBullet : MonoBehaviour
                 return;
             }
         if (life <= 0f) Destroy(gameObject);
+    }
+}
+
+// A real map-wide money rain. Bills fall visibly, remain on the floor for a
+// short time, and can be collected by the player or taken by nearby NPCs.
+public class MoneyRainPickup : MonoBehaviour
+{
+    int value;
+    float delay;
+    float life = 24f;
+    float groundY;
+    bool landed;
+
+    public static void Spawn(int value, float delay)
+    {
+        GameObject go = new GameObject("MoneyRainDollar");
+        MoneyRainPickup pickup = go.AddComponent<MoneyRainPickup>();
+        pickup.value = value;
+        pickup.delay = delay;
+        float x = Random.Range(-43f, 95f);
+        float z = Random.Range(-8f, 54f);
+        pickup.groundY = 0.42f;
+        go.transform.position = new Vector3(x, Random.Range(13f, 22f), z);
+        B.Prim(PrimitiveType.Cube, "OneDollar", go.transform, Vector3.zero, new Vector3(0f, Random.Range(0f, 360f), 0f),
+            new Vector3(0.62f, 0.05f, 0.3f), MatLib.Get(new Color(0.18f, 0.75f, 0.25f)));
+    }
+
+    void Update()
+    {
+        if (delay > 0f) { delay -= Time.deltaTime; return; }
+        life -= Time.deltaTime;
+        if (life <= 0f) { Destroy(gameObject); return; }
+        if (!landed)
+        {
+            transform.position += Vector3.down * (6f + (22f - transform.position.y) * 0.15f) * Time.deltaTime;
+            transform.Rotate(90f * Time.deltaTime, 170f * Time.deltaTime, 60f * Time.deltaTime);
+            if (transform.position.y <= groundY)
+            {
+                Vector3 p = transform.position; p.y = groundY; transform.position = p;
+                transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                landed = true;
+            }
+            return;
+        }
+        if (Game.player != null && FlatDistance(transform.position, Game.player.transform.position) < 1.25f)
+        {
+            Game.gm.AddMoney(value);
+            if (Game.ui != null) Game.ui.MoneyPunch();
+            Sfx.Play(Snd.MoneyPickup, 0.35f);
+            Destroy(gameObject);
+            return;
+        }
+        Customer[] customers = FindObjectsByType<Customer>(FindObjectsSortMode.None);
+        for (int i = 0; i < customers.Length; i++) if (FlatDistance(transform.position, customers[i].transform.position) < 0.8f) { Destroy(gameObject); return; }
+        BeachVisitor[] visitors = FindObjectsByType<BeachVisitor>(FindObjectsSortMode.None);
+        for (int i = 0; i < visitors.Length; i++) if (FlatDistance(transform.position, visitors[i].transform.position) < 0.8f) { Destroy(gameObject); return; }
+    }
+
+    static float FlatDistance(Vector3 a, Vector3 b)
+    {
+        a.y = b.y = 0f;
+        return Vector3.Distance(a, b);
     }
 }
 

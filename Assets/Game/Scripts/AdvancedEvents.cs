@@ -154,24 +154,35 @@ public static class ManagementRoomSystem
         float height = level == 3 ? 0.55f : level == 4 ? 1.05f : 1.6f;
         Material wall = MatLib.Get(level <= 2 ? new Color(0.48f, 0.72f, 0.78f) :
             Color.Lerp(new Color(0.32f, 0.55f, 0.72f), new Color(0.22f, 0.3f, 0.5f), (level - 3) / 2f));
+        // Office expansion moves the LEFT wall out to the marked strip and MERGES
+        // the two areas into one big room (no divider wall, shop floor shows through).
+        bool expanded = Game.gm.shopUpg.Length > 7 && Game.gm.shopUpg[7] > 0;
+        float leftX = expanded ? -14.5f : -3.5f;
+        const float rightX = 6.95f;
+        const float doorL = 0.5f;   // left end of the top door gap
+
         // Five visibly distinct stages: improvised barrier, proper fence, low
         // wall, medium wall, then the former level-two solid-wall height.
-        if (level == 1) BuildFlimsyFence(root.transform, wall);
-        else if (level == 2) BuildFence(root.transform, wall);
+        if (level == 1) BuildFlimsyFence(root.transform, wall, leftX);
+        else if (level == 2) BuildFence(root.transform, wall, leftX);
         else
         {
-            B.Prim(PrimitiveType.Cube, "RoomBottom", root.transform, new Vector3(1.7f, height * 0.5f, -3f), Vector3.zero, new Vector3(10.5f, height, 0.16f), wall, true);
-            B.Prim(PrimitiveType.Cube, "RoomLeft", root.transform, new Vector3(-3.5f, height * 0.5f, 2.5f), Vector3.zero, new Vector3(0.16f, height, 11f), wall, true);
-            B.Prim(PrimitiveType.Cube, "RoomTopA", root.transform, new Vector3(-1.5f, height * 0.5f, 8f), Vector3.zero, new Vector3(4f, height, 0.16f), wall, true);
+            float cx = (leftX + rightX) * 0.5f, w = rightX - leftX;
+            B.Prim(PrimitiveType.Cube, "RoomBottom", root.transform, new Vector3(cx, height * 0.5f, -3f), Vector3.zero, new Vector3(w, height, 0.16f), wall, true);
+            B.Prim(PrimitiveType.Cube, "RoomLeft", root.transform, new Vector3(leftX, height * 0.5f, 2.5f), Vector3.zero, new Vector3(0.16f, height, 11f), wall, true);
+            // front wall (z=8) with a door gap; left segment stretches across the expansion
+            B.Prim(PrimitiveType.Cube, "RoomTopA", root.transform, new Vector3((leftX + doorL) * 0.5f, height * 0.5f, 8f), Vector3.zero, new Vector3(doorL - leftX, height, 0.16f), wall, true);
             B.Prim(PrimitiveType.Cube, "RoomTopB", root.transform, new Vector3(5.2f, height * 0.5f, 8f), Vector3.zero, new Vector3(3.5f, height, 0.16f), wall, true);
         }
+
         if (Game.gm.shopUpg.Length > 5 && Game.gm.shopUpg[5] > 0)
         {
             SecurityCameraSystem.BeginMonitorLayout();
             Material desk = MatLib.Get(new Color(0.24f, 0.3f, 0.4f));
             GameObject cameraDesk = new GameObject("CameraDeskStation");
             cameraDesk.transform.SetParent(root.transform, false);
-            cameraDesk.transform.localPosition = new Vector3(-1.35f, 0f, -1.45f); // left-side marked slot, aligned with the generator
+            // bottom-left corner of the (expanded) room, matching the marked spot
+            cameraDesk.transform.localPosition = expanded ? new Vector3(-12f, 0f, -1.3f) : new Vector3(-2.6f, 0f, -2.3f);
             B.Prim(PrimitiveType.Cube, "CameraDesk", cameraDesk.transform, new Vector3(0f, 0.72f, 0f), Vector3.zero, new Vector3(2.8f, 1.25f, 1.1f), desk, true);
             int monitors = Mathf.Clamp(Game.gm.shopUpg[5], 1, 5);
             for (int i = 0; i < monitors; i++)
@@ -184,38 +195,44 @@ public static class ManagementRoomSystem
             B.Text3D("KAMERA IZLEME", cameraDesk.transform, new Vector3(0f, 2.55f, 0f), 0.065f, Color.white);
             Game.cameraDesk = cameraDesk.AddComponent<CameraDeskUnit>();
         }
+        // marketing desk can be bought directly and sits in the LEFT (expansion) area
+        if (Game.gm.shopUpg.Length > 8 && Game.gm.shopUpg[8] > 0)
+            MarketingDesk.Create(root.transform, new Vector3(-9f, 0f, 4.5f));
         SecurityCameraSystem.Refresh();
     }
 
-    static void BuildFlimsyFence(Transform parent, Material material)
+    static void BuildFlimsyFence(Transform parent, Material material, float leftX)
     {
-        for (float x = -3.5f; x <= 7f; x += 2.6f)
+        float cx = (leftX + 7f) * 0.5f, w = 7f - leftX;
+        for (float x = leftX; x <= 7f; x += 2.6f)
             B.Prim(PrimitiveType.Cube, "CheapPost", parent, new Vector3(x, 0.38f, -3f),
                 new Vector3(0f, 0f, Random.Range(-8f, 8f)), new Vector3(0.1f, 0.76f, 0.1f), material, true);
         for (float z = -3f; z <= 8f; z += 2.6f)
-            B.Prim(PrimitiveType.Cube, "CheapPost", parent, new Vector3(-3.5f, 0.38f, z),
+            B.Prim(PrimitiveType.Cube, "CheapPost", parent, new Vector3(leftX, 0.38f, z),
                 new Vector3(Random.Range(-8f, 8f), 0f, 0f), new Vector3(0.1f, 0.76f, 0.1f), material, true);
-        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(1.7f, 0.48f, -3f),
-            new Vector3(0f, 0f, 2f), new Vector3(10.5f, 0.09f, 0.09f), material, true);
-        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(-3.5f, 0.48f, 2.5f),
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(cx, 0.48f, -3f),
+            new Vector3(0f, 0f, 2f), new Vector3(w, 0.09f, 0.09f), material, true);
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(leftX, 0.48f, 2.5f),
             new Vector3(0f, 2f, 0f), new Vector3(0.09f, 0.09f, 11f), material, true);
-        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(-1.5f, 0.48f, 8f),
-            new Vector3(0f, 0f, -2f), new Vector3(4f, 0.09f, 0.09f), material, true);
+        // front rail up to the door gap
+        B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3((leftX + 0.5f) * 0.5f, 0.48f, 8f),
+            new Vector3(0f, 0f, -2f), new Vector3(0.5f - leftX, 0.09f, 0.09f), material, true);
         B.Prim(PrimitiveType.Cube, "CheapRail", parent, new Vector3(5.2f, 0.48f, 8f),
             new Vector3(0f, 0f, 3f), new Vector3(3.5f, 0.09f, 0.09f), material, true);
     }
 
-    static void BuildFence(Transform parent, Material material)
+    static void BuildFence(Transform parent, Material material, float leftX)
     {
-        for (float x = -3.5f; x <= 7f; x += 1.5f)
+        float cx = (leftX + 7f) * 0.5f, w = 7f - leftX;
+        for (float x = leftX; x <= 7f; x += 1.5f)
             B.Prim(PrimitiveType.Cube, "FencePost", parent, new Vector3(x, 0.55f, -3f), Vector3.zero, new Vector3(0.14f, 1.1f, 0.14f), material, true);
         for (float z = -3f; z <= 8f; z += 1.5f)
-            B.Prim(PrimitiveType.Cube, "FencePost", parent, new Vector3(-3.5f, 0.55f, z), Vector3.zero, new Vector3(0.14f, 1.1f, 0.14f), material, true);
-        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(1.7f, 0.38f, -3f), Vector3.zero, new Vector3(10.5f, 0.12f, 0.12f), material, true);
-        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(1.7f, 0.88f, -3f), Vector3.zero, new Vector3(10.5f, 0.12f, 0.12f), material, true);
-        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(-3.5f, 0.38f, 2.5f), Vector3.zero, new Vector3(0.12f, 0.12f, 11f), material, true);
-        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(-3.5f, 0.88f, 2.5f), Vector3.zero, new Vector3(0.12f, 0.12f, 11f), material, true);
-        AddFenceSegment(parent, material, -1.5f, 4f);
+            B.Prim(PrimitiveType.Cube, "FencePost", parent, new Vector3(leftX, 0.55f, z), Vector3.zero, new Vector3(0.14f, 1.1f, 0.14f), material, true);
+        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(cx, 0.38f, -3f), Vector3.zero, new Vector3(w, 0.12f, 0.12f), material, true);
+        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(cx, 0.88f, -3f), Vector3.zero, new Vector3(w, 0.12f, 0.12f), material, true);
+        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(leftX, 0.38f, 2.5f), Vector3.zero, new Vector3(0.12f, 0.12f, 11f), material, true);
+        B.Prim(PrimitiveType.Cube, "FenceRail", parent, new Vector3(leftX, 0.88f, 2.5f), Vector3.zero, new Vector3(0.12f, 0.12f, 11f), material, true);
+        AddFenceSegment(parent, material, (leftX + 0.5f) * 0.5f, 0.5f - leftX);
         AddFenceSegment(parent, material, 5.2f, 3.5f);
     }
 
@@ -239,19 +256,26 @@ public class CameraDeskUnit : MonoBehaviour
     Text title;
     int feedIndex;
     float openedAt;
+    bool personnelMode;
+    Button shopModeButton, personnelModeButton;
 
     public bool ViewerOpen { get { return viewer != null && viewer.activeSelf; } }
     public bool PlayerNear(Vector3 position) { return Vector3.Distance(position, transform.position) < 3.2f; }
 
     public void OpenViewer()
     {
-        if (SecurityCameraSystem.FeedCount == 0)
+        bool canShop = SecurityCameraSystem.FeedCount > 0;
+        bool canPersonnel = Game.gm != null && Game.gm.TechActive(9) && StaffCameraSystem.Count > 0;
+        if (!canShop && !canPersonnel)
         {
-            if (Game.ui != null) Game.ui.Toast("Canli yayin icin once Teknoloji bolumunden guvenlik kamerasi satin al.", 4f);
+            if (Game.ui != null) Game.ui.Toast("Canli yayin icin dukkan kamerasi veya Isci Kamerasi satin al.", 4f);
             return;
         }
         EnsureViewer();
-        feedIndex = Mathf.Clamp(feedIndex, 0, SecurityCameraSystem.FeedCount - 1);
+        if (shopModeButton != null) shopModeButton.gameObject.SetActive(canShop && canPersonnel);
+        if (personnelModeButton != null) personnelModeButton.gameObject.SetActive(canShop && canPersonnel);
+        personnelMode = !canShop && canPersonnel;
+        feedIndex = 0;
         RefreshFeed();
         viewer.SetActive(true);
         openedAt = Time.unscaledTime;
@@ -273,7 +297,9 @@ public class CameraDeskUnit : MonoBehaviour
         GameObject shade = UIKit.Panel(viewer.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1600f, 900f), new Color(0.025f, 0.04f, 0.07f, 0.97f), false, false);
         GameObject header = UIKit.Panel(shade.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -42f), new Vector2(1160f, 72f), UIKit.BlueDark, true, false);
         title = UIKit.Label(header.transform, "", 24, Color.white, TextAnchor.MiddleCenter);
-        GameObject screen = UIKit.Panel(shade.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), new Vector2(1160f, 650f), Color.black, true, true);
+        shopModeButton = UIKit.Btn(shade.transform, new Vector2(-150f, -315f), new Vector2(270f, 48f), UIKit.Blue, "DUKKAN KAMERASI", 16, delegate { SetMode(false); });
+        personnelModeButton = UIKit.Btn(shade.transform, new Vector2(150f, -315f), new Vector2(270f, 48f), UIKit.Purple, "PERSONEL KAMERASI", 16, delegate { SetMode(true); });
+        GameObject screen = UIKit.Panel(shade.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(1160f, 570f), Color.black, true, true);
         GameObject raw = new GameObject("LiveFeed");
         raw.transform.SetParent(screen.transform, false);
         RectTransform rr = raw.AddComponent<RectTransform>();
@@ -297,15 +323,93 @@ public class CameraDeskUnit : MonoBehaviour
         else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) Next();
     }
 
-    void Previous() { if (SecurityCameraSystem.FeedCount > 0) { feedIndex = (feedIndex - 1 + SecurityCameraSystem.FeedCount) % SecurityCameraSystem.FeedCount; RefreshFeed(); } }
-    void Next() { if (SecurityCameraSystem.FeedCount > 0) { feedIndex = (feedIndex + 1) % SecurityCameraSystem.FeedCount; RefreshFeed(); } }
+    int ModeCount { get { return personnelMode ? StaffCameraSystem.Count : SecurityCameraSystem.FeedCount; } }
+    void SetMode(bool personnel)
+    {
+        if (personnel && (Game.gm == null || !Game.gm.TechActive(9) || StaffCameraSystem.Count == 0))
+        {
+            if (Game.ui != null) Game.ui.Toast("Personel kamerasini Teknoloji bolumunden satin al ve en az bir calisan ise al.", 4f);
+            return;
+        }
+        if (!personnel && SecurityCameraSystem.FeedCount == 0) return;
+        personnelMode = personnel; feedIndex = 0; RefreshFeed();
+    }
+    void Previous() { int count = ModeCount; if (count > 0) { feedIndex = (feedIndex - 1 + count) % count; RefreshFeed(); } }
+    void Next() { int count = ModeCount; if (count > 0) { feedIndex = (feedIndex + 1) % count; RefreshFeed(); } }
     void RefreshFeed()
     {
-        if (feedImage != null) feedImage.texture = SecurityCameraSystem.GetFeed(feedIndex);
-        if (title != null) title.text = "CANLI GUVENLIK YAYINI  -  KAMERA " + (feedIndex + 1) + "/" + SecurityCameraSystem.FeedCount;
+        int count = Mathf.Max(1, ModeCount);
+        feedIndex = Mathf.Clamp(feedIndex, 0, count - 1);
+        if (personnelMode)
+        {
+            if (feedImage != null) feedImage.texture = StaffCameraSystem.Select(feedIndex);
+            Staff staff = StaffCameraSystem.GetStaff(feedIndex);
+            if (title != null) title.text = staff != null
+                ? StaffInfo.Names[staff.role] + "  -  " + staff.CurrentTask + "  (" + (feedIndex + 1) + "/" + count + ")"
+                : "PERSONEL KAMERASI";
+        }
+        else
+        {
+            StaffCameraSystem.Disable();
+            if (feedImage != null) feedImage.texture = SecurityCameraSystem.GetFeed(feedIndex);
+            if (title != null) title.text = "DUKKAN KAMERASI  -  " + (feedIndex + 1) + "/" + SecurityCameraSystem.FeedCount;
+        }
+        if (shopModeButton != null) shopModeButton.image.color = personnelMode ? UIKit.BlueDark : UIKit.Green;
+        if (personnelModeButton != null) personnelModeButton.image.color = personnelMode ? UIKit.Green : UIKit.Purple;
     }
-    public void CloseViewer() { if (viewer != null) viewer.SetActive(false); Sfx.Play(Snd.Tick, 0.35f); }
+    public void CloseViewer() { if (viewer != null) viewer.SetActive(false); StaffCameraSystem.Disable(); Sfx.Play(Snd.Tick, 0.35f); }
     void OnDestroy() { if (viewer != null) Destroy(viewer); if (Game.cameraDesk == this) Game.cameraDesk = null; }
+}
+
+public static class StaffCameraSystem
+{
+    static GameObject cameraObject;
+    static Camera camera;
+    static RenderTexture feed;
+    static readonly List<Staff> available = new List<Staff>();
+
+    static void RefreshAvailable()
+    {
+        available.Clear();
+        for (int i = 0; i < Game.staff.Count; i++) if (Game.staff[i] != null) available.Add(Game.staff[i]);
+    }
+
+    public static int Count { get { RefreshAvailable(); return available.Count; } }
+    public static Staff GetStaff(int index)
+    {
+        RefreshAvailable();
+        return index >= 0 && index < available.Count ? available[index] : null;
+    }
+
+    public static RenderTexture Select(int index)
+    {
+        Staff staff = GetStaff(index);
+        if (staff == null) return null;
+        if (cameraObject == null)
+        {
+            cameraObject = new GameObject("PersonnelLiveCamera");
+            camera = cameraObject.AddComponent<Camera>();
+            camera.fieldOfView = 70f;
+            camera.nearClipPlane = 0.08f;
+            camera.farClipPlane = 180f;
+            camera.depth = -50f;
+            camera.allowHDR = false;
+            camera.allowMSAA = true;
+            feed = new RenderTexture(1280, 720, 24, RenderTextureFormat.ARGB32);
+            feed.name = "PersonnelLiveFeed";
+            feed.antiAliasing = 4;
+            feed.filterMode = FilterMode.Bilinear;
+            feed.Create();
+            camera.targetTexture = feed;
+        }
+        cameraObject.transform.SetParent(staff.ViewRoot, false);
+        cameraObject.transform.localPosition = new Vector3(0f, 1.75f, 0.28f);
+        cameraObject.transform.localRotation = Quaternion.identity;
+        camera.enabled = true;
+        return feed;
+    }
+
+    public static void Disable() { if (camera != null) camera.enabled = false; }
 }
 
 public static class SecurityCameraSystem

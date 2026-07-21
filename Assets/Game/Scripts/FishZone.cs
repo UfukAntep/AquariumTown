@@ -94,8 +94,8 @@ public class Sea : MonoBehaviour
         return f;
     }
 
-    // after midnight (00:00 - 05:00) the sea turns deadly: only sharks, they attack
-    public bool SharkNight { get { return Game.gm != null && Game.gm.clockMinutes < 5f * 60f; } }
+    // From 22:00 until the 02:00 day end the sea is relentlessly dangerous.
+    public bool SharkNight { get { return Game.gm != null && (Game.gm.clockMinutes >= 22f * 60f || Game.gm.clockMinutes < 2f * 60f); } }
 
     bool nightHidden;
     float sharkTimer;
@@ -120,9 +120,9 @@ public class Sea : MonoBehaviour
                 sharkTimer -= Time.deltaTime;
                 if (sharkTimer <= 0f)
                 {
-                    sharkTimer = 5f;
+                    sharkTimer = 2.2f;
                     int existing = FindObjectsByType<Shark>(FindObjectsSortMode.None).Length;
-                    if (existing < 3) Shark.Spawn(Game.player.transform.position, false);
+                    if (existing < 5) Shark.Spawn(Game.player.transform.position, false);
                 }
             }
             return;
@@ -192,6 +192,32 @@ public class Sea : MonoBehaviour
         return best != null ? best : bestLocked;
     }
 
+    // Hunter staff are deliberately distributed through near/middle/far sea
+    // bands instead of all clustering around the cheapest shoreline fish.
+    public Fish FindWorkerTarget(Vector3 workerPos, int band, float radarRange)
+    {
+        List<Fish> candidates = new List<Fish>();
+        for (int i = 0; i < fishes.Count; i++)
+        {
+            Fish f = fishes[i];
+            if (f == null || f.state != Fish.State.Wild || f.decorative || f.golden || !Game.gm.IsUnlocked(f.species)) continue;
+            if (Vector3.Distance(workerPos, f.transform.position) > radarRange) continue;
+            float seaDepth = Mathf.InverseLerp(area.xMin, area.xMax, f.transform.position.x);
+            bool inBand = band <= 0 ? seaDepth < 0.38f : band == 1 ? seaDepth >= 0.28f && seaDepth < 0.70f : seaDepth >= 0.58f;
+            if (inBand) candidates.Add(f);
+        }
+        if (candidates.Count == 0)
+        {
+            for (int i = 0; i < fishes.Count; i++)
+            {
+                Fish f = fishes[i];
+                if (f != null && f.state == Fish.State.Wild && !f.decorative && !f.golden && Game.gm.IsUnlocked(f.species) &&
+                    Vector3.Distance(workerPos, f.transform.position) <= radarRange) candidates.Add(f);
+            }
+        }
+        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : null;
+    }
+
     public Fish FindGoldenNear(Vector3 pos, float range)
     {
         for (int i = 0; i < fishes.Count; i++)
@@ -240,7 +266,7 @@ public class Sea : MonoBehaviour
             if (Vector3.Distance(pos, f.transform.position) < radius)
             {
                 fishes.RemoveAt(i);
-                f.Die();
+                f.DieFromPollution();
                 return true;
             }
         }
@@ -248,6 +274,20 @@ public class Sea : MonoBehaviour
     }
 
     public int FishCount { get { return fishes.Count; } }
+
+    public int KillInRadius(Vector3 center, float radius, int maximum)
+    {
+        int killed = 0;
+        for (int i = fishes.Count - 1; i >= 0 && killed < maximum; i--)
+        {
+            Fish fish = fishes[i];
+            if (fish == null || fish.state != Fish.State.Wild || fish.golden || Vector3.Distance(center, fish.transform.position) > radius) continue;
+            fishes.RemoveAt(i);
+            fish.DieFromPollution();
+            killed++;
+        }
+        return killed;
+    }
 
     public void Remove(Fish f) { fishes.Remove(f); }
 }

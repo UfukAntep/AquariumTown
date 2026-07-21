@@ -15,6 +15,7 @@ public class Toilets : MonoBehaviour
         public GameObject go;
         public TextMesh text;
         public GameObject clogBlob;
+        public Customer occupant;
     }
 
     class UrineSpot
@@ -24,6 +25,8 @@ public class Toilets : MonoBehaviour
 
     List<Unit> units = new List<Unit>();
     List<UrineSpot> urineSpots = new List<UrineSpot>();
+    Dictionary<Customer, Unit> reservations = new Dictionary<Customer, Unit>();
+    Dictionary<Customer, GameObject> runningWater = new Dictionary<Customer, GameObject>();
     GameObject lockedSign;
     float playerFixTimer;
 
@@ -188,6 +191,87 @@ public class Toilets : MonoBehaviour
             if (Random.value < 0.32f) SpawnUrine(best.go.transform.position);
             UpdateText(best);
         }
+    }
+
+    public bool TryBeginToilet(Customer customer, out Vector3 usePosition)
+    {
+        usePosition = EntrancePos;
+        if (customer == null) return false;
+        for (int i = 0; i < units.Count; i++)
+        {
+            Unit u = units[i];
+            if (u.type != 0 || u.occupant != null || u.clogged || u.dirt >= 0.7f) continue;
+            u.occupant = customer;
+            reservations[customer] = u;
+            usePosition = u.go.transform.position + new Vector3(0f, 0f, 0.15f);
+            if (PlayerNear(usePosition)) Sfx.Play(Random.value < 0.45f ? Snd.Fart : Snd.Toilet, 0.48f);
+            return true;
+        }
+        return false;
+    }
+
+    public void FinishToilet(Customer customer)
+    {
+        Unit u;
+        if (customer == null || !reservations.TryGetValue(customer, out u)) return;
+        reservations.Remove(customer);
+        u.occupant = null;
+        u.dirt = Mathf.Min(1f, u.dirt + Random.Range(0.12f, 0.28f));
+        if (Random.value < 0.22f) SpawnUrine(u.go.transform.position);
+        UpdateText(u);
+    }
+
+    public bool TryBeginSink(Customer customer, out Vector3 usePosition)
+    {
+        usePosition = EntrancePos;
+        if (customer == null) return false;
+        for (int i = 0; i < units.Count; i++)
+        {
+            Unit u = units[i];
+            if (u.type != 1 || u.occupant != null || u.dirt >= 0.7f) continue;
+            u.occupant = customer;
+            reservations[customer] = u;
+            usePosition = u.go.transform.position + new Vector3(0f, 0f, -0.7f);
+            GameObject water = B.Prim(PrimitiveType.Cylinder, "RunningWater", u.go.transform, new Vector3(0f, 0.75f, 0.05f), Vector3.zero,
+                new Vector3(0.055f, 0.32f, 0.055f), MatLib.Glass(new Color(0.35f, 0.75f, 1f, 0.72f)));
+            runningWater[customer] = water;
+            if (PlayerNear(usePosition)) Sfx.Play(Snd.Water, 0.42f);
+            return true;
+        }
+        return false;
+    }
+
+    public void FinishSink(Customer customer)
+    {
+        Unit u;
+        if (customer != null && reservations.TryGetValue(customer, out u))
+        {
+            reservations.Remove(customer);
+            u.occupant = null;
+            u.dirt = Mathf.Min(1f, u.dirt + 0.07f);
+            UpdateText(u);
+        }
+        GameObject water;
+        if (customer != null && runningWater.TryGetValue(customer, out water))
+        {
+            runningWater.Remove(customer);
+            if (water != null) Destroy(water);
+        }
+    }
+
+    public void QueueAccident(Vector3 around)
+    {
+        if (Random.value < 0.55f) SpawnUrine(around);
+        else if (Game.trash != null)
+        {
+            Vector2 offset = Random.insideUnitCircle * 0.7f;
+            Game.trash.SpawnLandTrash(around + new Vector3(offset.x, 0f, offset.y), true);
+        }
+    }
+
+    bool PlayerNear(Vector3 point)
+    {
+        return Game.player != null && Vector3.Distance(Game.player.transform.position, point) < 11f;
     }
 
     void SpawnUrine(Vector3 around)

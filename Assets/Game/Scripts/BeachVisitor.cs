@@ -35,6 +35,8 @@ public class BeachVisitor : MonoBehaviour
     float speed, timer;
     Vector3 moveTarget, loungerSpot;
     GameObject lounger;
+    bool blastDead;
+    float blastTimer;
 
     public static BeachVisitor Spawn()
     {
@@ -82,6 +84,12 @@ public class BeachVisitor : MonoBehaviour
     {
         if (Game.gm == null) { Destroy(gameObject); return; }
         float dt = Time.deltaTime;
+        if (blastDead)
+        {
+            blastTimer -= dt;
+            if (blastTimer <= 0f) Destroy(gameObject);
+            return;
+        }
         switch (state)
         {
             case S.ToBeach:
@@ -110,6 +118,18 @@ public class BeachVisitor : MonoBehaviour
                 if (MoveTo(moveTarget, dt)) Destroy(gameObject);
                 break;
         }
+    }
+
+    public void BlastHit(Vector3 origin)
+    {
+        if (blastDead) return;
+        blastDead = true;
+        blastTimer = 7f;
+        Vector3 away = transform.position - origin; away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = Vector3.forward;
+        transform.position += away.normalized * 3f;
+        visual.rotation = Quaternion.Euler(0f, visual.eulerAngles.y, 90f);
+        if (lounger != null) { Destroy(lounger); lounger = null; }
     }
 
     // topple the lounger + drop food litter on the beach (counts as pollution)

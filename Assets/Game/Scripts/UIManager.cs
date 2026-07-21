@@ -44,7 +44,7 @@ public class UIManager : MonoBehaviour
     public bool MapOpen { get { return mapGo != null && mapGo.activeSelf; } }
     public bool LangOpen { get { return langGo != null && langGo.activeSelf; } }
     public bool ControlsOpen { get { return controlsGo != null && controlsGo.activeSelf; } }
-    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || ControlsOpen || (Game.cameraDesk != null && Game.cameraDesk.ViewerOpen) || (Game.pc != null && Game.pc.IsOpen); } }
+    public bool AnyMenuOpen { get { return MainMenuOpen || PauseOpen || CelebrationOpen || InfoOpen || MapOpen || LangOpen || ControlsOpen || (Game.cameraDesk != null && Game.cameraDesk.ViewerOpen) || (Game.marketingDesk != null && Game.marketingDesk.ViewerOpen) || (Game.mechanicsDesk != null && Game.mechanicsDesk.ViewerOpen) || (Game.pc != null && Game.pc.IsOpen); } }
 
     public static UIManager Create()
     {
@@ -146,6 +146,7 @@ public class UIManager : MonoBehaviour
         toastGo = UIKit.Panel(transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(780f, 58f), UIKit.Green, true, true);
         toastText = UIKit.Label(toastGo.transform, "", 22, Color.white, TextAnchor.MiddleCenter, true);
         toastGo.SetActive(false);
+
 
         // Persistent first-session camera lesson. It deliberately has no timer
         // and disappears only after the player actually presses C.
@@ -729,6 +730,7 @@ public class UIManager : MonoBehaviour
         else if (level == 23) StartMilestoneOnce(23);
         else if (level == 25) StartMilestoneOnce(25);
         else if (level == 30) StartMilestoneOnce(30);
+        else if (level == 35) StartMilestoneOnce(35);
     }
 
     void StartMilestoneOnce(int level)
@@ -755,12 +757,13 @@ public class UIManager : MonoBehaviour
         else if (level == 8)
             ShowPausedInfo("DENIZ KIRLENMEYE BASLADI!",
                 "Artik deniz zamanla kendi kendine kirlenebilir.\n\n" +
-                "Deniz kirliligine dikkat et; temizlemezsen baliklar olebilir.");
+                "Deniz kirliligine dikkat et; temizlemezsen baliklar olebilir. Kirlilik oranini artik sag ustteki durum panelinde de takip edebilirsin.");
         else if (level == 10)
             ShowPausedInfo("MUSTERILERIN TUVALET IHTIYACI VAR!",
                 "Musteriler artik tuvalet kullanmak istiyor.\n\n" +
                 "Tuvalet alanin yoksa satin al. Temiz bir tuvalet bulunmazsa musteri memnuniyeti duser.\n\n" +
-                "Tuvalet alanini dukkanin en sol alt kosesinde bulabilirsin.");
+                "Tuvalet alanini dukkanin en sol alt kosesinde bulabilirsin.",
+                delegate { StartCoroutine(ExpansionWarningAfterDelay(10, false)); });
         else if (level == 15)
             ShowPausedInfo("SAHIL TATILI BASLADI!",
                 "Tatilciler artik sahile ve denize geliyor.\n\n" +
@@ -776,7 +779,7 @@ public class UIManager : MonoBehaviour
         else if (level == 20)
             ShowPausedInfo("OKUL GEZILERI BASLADI!",
                 "Tur otobusu bir anda kalabalik getirir. Yeterli stok ve kasa personeli hazirla; karsilanmayan talep cok sayida kotu yoruma donusur.",
-                delegate { StartCoroutine(ForceEventAfterDelay(20)); });
+                delegate { StartCoroutine(ExpansionWarningAfterDelay(20, true)); });
         else if (level == 23)
             ShowPausedInfo("FIRTINA MEVSIMI BASLADI!",
                 "Firtinalar sahili ve denizi kirletir; iskele, rampa ve jetski zarar gorebilir. Deniz ve sahil temizligini ihmal etme.",
@@ -791,6 +794,10 @@ public class UIManager : MonoBehaviour
             ShowPausedInfo("DUSMANLARIN ARTTI!",
                 "Hirsizlar artik 2-5 kisilik gruplar halinde gelebilir. Her grupta sopa veya silah tasiyan tehlikeli kisiler olacak. Guvenligi ve kameralari gelistir.",
                 delegate { StartCoroutine(ForceEventAfterDelay(30)); });
+        else if (level == 35)
+            ShowPausedInfo("TERORIST TEHLIKESI!",
+                "Terorist cop kutusuna, sahile veya denize bomba koyabilir. Bombayi kurmasi 10 saniye surer; sag tik veya SPACE ile saldirip durdur. Canini silahlarla daha hizli azaltabilirsin.",
+                delegate { StartCoroutine(ForceEventAfterDelay(35)); });
     }
 
     System.Collections.IEnumerator Level13MechanicsRoutine()
@@ -815,6 +822,15 @@ public class UIManager : MonoBehaviour
         else if (level == 20 && PlayerPrefs.GetInt("AT3_SchoolTripOccurred", 0) == 0) Game.events.TriggerSchoolTrip(true);
         else if (level == 23 && PlayerPrefs.GetInt("AT3_StormOccurred", 0) == 0) Game.events.TriggerStorm(true);
         else if (level == 30) Game.events.SpawnThief(true);
+        else if (level == 35 && PlayerPrefs.GetInt("AT3_TerroristOccurred", 0) == 0) Game.events.TriggerTerrorist(true);
+    }
+
+    System.Collections.IEnumerator ExpansionWarningAfterDelay(int level, bool forceSchoolTrip)
+    {
+        yield return new WaitForSeconds(2.2f);
+        ShowPausedInfo(level == 10 ? "YENI ALANA HAZIRLAN" : "YENI ALAN SATIN ALMALISIN",
+            "Yeni akvaryumlari acmaya devam etmek icin kilitli dukkan alanlarini satin almalisin. Alan genisletmeleri yeni akvaryum siralarina yer acar.",
+            forceSchoolTrip ? (System.Action)delegate { StartCoroutine(ForceEventAfterDelay(20)); } : null);
     }
 
     System.Collections.IEnumerator Level5QuakeTutorialRoutine()
@@ -1168,6 +1184,7 @@ public class UIManager : MonoBehaviour
         if (Game.gm == null) return;
         OnMoneyChanged();
 
+
         if (ControlsOpen)
         {
             bool wasBinding = pendingBinding >= 0;
@@ -1221,7 +1238,7 @@ public class UIManager : MonoBehaviour
             dirtText.text = "%" + dirt;
             dirtText.color = dirt < 30 ? UIKit.TextDark : dirt < 60 ? UIKit.Orange : UIKit.Red;
 
-            int seaDirt = Mathf.Clamp(Game.trash.SeaCount * 6, 0, 100);
+            int seaDirt = Game.trash.SeaPollutionPercent;
             if (seaDirtText != null)
             {
                 seaDirtText.text = "%" + seaDirt;

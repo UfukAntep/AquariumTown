@@ -198,7 +198,7 @@ public class CameraRig : MonoBehaviour
         }
         else if (mode == Mode.TPS)
         {
-            // orbit camera around the character, GTA style (yaw + pitch)
+            // Free third-person orbit around the character (yaw + pitch).
             Quaternion orbit = Quaternion.Euler(tpsPitch, tpsYaw, 0f);
             Vector3 pivot = target.position + Vector3.up * 1.7f;
             Vector3 want = pivot - orbit * Vector3.forward * 5.5f * zoom;

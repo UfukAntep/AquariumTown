@@ -10,6 +10,7 @@ public class TrashItem : MonoBehaviour
     Transform stain;          // pollution slick that slowly spreads in water
     float stainT;
     bool largeTrash;
+    public bool IsPoop { get; private set; }
 
     public float KillRadius { get { return inSea ? 1.0f + stainT * 2.6f : 0f; } }
     public float StainSize { get { return stainT; } }
@@ -20,6 +21,7 @@ public class TrashItem : MonoBehaviour
         go.transform.position = pos;
         TrashItem t = go.AddComponent<TrashItem>();
         t.inSea = sea;
+        t.IsPoop = poop;
 
         if (poop)
         {
@@ -30,19 +32,13 @@ public class TrashItem : MonoBehaviour
         }
         else
         {
-            // dropped food litter from the ithappy pack (fallback: gray clump)
-            GameObject food = AssetLib.SpawnFood(go.transform, 0.8f);
-            if (food != null)
-            {
-                food.transform.localPosition = new Vector3(0f, 0.15f, 0f);
-                food.transform.localEulerAngles = new Vector3(Random.Range(-25f, 25f), Random.Range(0f, 360f), Random.Range(140f, 220f));
-            }
-            else
-            {
-                Color c = sea ? new Color(0.42f, 0.22f, 0.08f) : new Color(0.7f, 0.65f, 0.55f);
-                B.Prim(PrimitiveType.Sphere, "Ball", go.transform, new Vector3(0f, 0.22f, 0f), Vector3.zero, new Vector3(0.45f, 0.35f, 0.45f), MatLib.Get(c));
-                B.Prim(PrimitiveType.Cube, "Bit", go.transform, new Vector3(0.15f, 0.32f, 0.1f), new Vector3(20f, 40f, 10f), Vector3.one * 0.18f, MatLib.Get(c * 0.85f));
-            }
+            // clearly visible litter: a soda can + crumpled wrapper (no tiny food props)
+            Color canCol = sea ? new Color(0.55f, 0.6f, 0.62f) : Color.HSVToRGB(Random.value, 0.55f, 0.85f);
+            Material canM = MatLib.Get(canCol);
+            Material capM = MatLib.Get(new Color(0.75f, 0.75f, 0.78f));
+            B.Prim(PrimitiveType.Cylinder, "Can", go.transform, new Vector3(0f, 0.28f, 0f), new Vector3(0f, 0f, 78f), new Vector3(0.32f, 0.42f, 0.32f), canM);
+            B.Prim(PrimitiveType.Cylinder, "CanTop", go.transform, new Vector3(0.42f, 0.28f, 0f), new Vector3(0f, 0f, 78f), new Vector3(0.34f, 0.03f, 0.34f), capM);
+            B.Prim(PrimitiveType.Cube, "Wrap", go.transform, new Vector3(-0.25f, 0.18f, 0.2f), new Vector3(25f, 40f, 15f), new Vector3(0.4f, 0.28f, 0.4f), MatLib.Get(new Color(0.9f, 0.85f, 0.4f)));
         }
 
         if (sea)
@@ -128,10 +124,12 @@ public class TrashSystem : MonoBehaviour
     float seaTimer = 30f;
     float killTimer = 2f;
     float spreadTimer = 10f;
+    readonly Color cleanSeaTint = Color.white;
     const int SeaPollutionLevel = 8; // sea starts self-polluting only from here
 
     public int Count { get { landItems.RemoveAll(i => i == null); return landItems.Count; } }
     public int SeaCount { get { seaItems.RemoveAll(i => i == null); return seaItems.Count; } }
+    public int SeaPollutionPercent { get { return Mathf.Clamp(SeaCount * 7, 0, 100); } }
     public int ShopCount
     {
         get
@@ -179,6 +177,7 @@ public class TrashSystem : MonoBehaviour
     {
         if (Game.gm == null) return;
         float dt = Time.deltaTime;
+        UpdateSeaColor();
 
         // Inside the shop customers only leave poop. Food litter is reserved for
         // the beach visitor system, so the two kinds of dirt read differently.
@@ -193,6 +192,7 @@ public class TrashSystem : MonoBehaviour
                 {
                     Vector3 pos = custs[Random.Range(0, custs.Length)].transform.position;
                     pos.y = 0f;
+                    pos = SafeShopPoopPosition(pos);
                     landItems.Add(TrashItem.Create(pos, false, true));
                     if (Count == 4 && Game.ui != null)
                         Game.ui.Toast("Magaza kirleniyor! Musteriler rahatsiz olabilir.");
@@ -249,6 +249,46 @@ public class TrashSystem : MonoBehaviour
                 if (Game.sea != null && Game.sea.KillOneNear(seaItems[i].transform.position, seaItems[i].KillRadius))
                     break;
         }
+    }
+
+    void UpdateSeaColor()
+    {
+        Renderer renderer = GameBootstrap.SeaSurfaceRenderer;
+        if (renderer == null) return;
+        Material mat = renderer.material;
+        if (mat == null) return;
+        float dirty = Mathf.InverseLerp(45f, 100f, SeaPollutionPercent);
+        Color tint = Color.Lerp(cleanSeaTint, new Color(0.30f, 0.16f, 0.055f, 1f), dirty);
+        mat.color = tint;
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+    }
+
+    Vector3 SafeShopPoopPosition(Vector3 preferred)
+    {
+        // Customer positions can be underneath a desk or on a future tank
+        // plot. Search nearby walkable floor while keeping every known large
+        // fixture and aquarium footprint clear.
+        for (int attempt = 0; attempt < 24; attempt++)
+        {
+            Vector3 p = attempt == 0 ? preferred : preferred + new Vector3(Random.Range(-5f, 5f), 0f, Random.Range(-5f, 5f));
+            p.x = Mathf.Clamp(p.x, -43f, 5.5f);
+            p.z = Mathf.Clamp(p.z, -8f, 51f);
+            if (IsBlockedShopFloor(p)) continue;
+            return p;
+        }
+        return new Vector3(Mathf.Clamp(preferred.x, -40f, 3f), 0f, Mathf.Clamp(preferred.z + 4f, -5f, 48f));
+    }
+
+    bool IsBlockedShopFloor(Vector3 p)
+    {
+        for (int i = 0; i < SpeciesInfo.Count; i++)
+            if (Vector3.Distance(p, GameBootstrap.PlotPos(i)) < 2.8f) return true;
+        if (Game.managerDesk != null && Vector3.Distance(p, Game.managerDesk.transform.position) < 3.2f) return true;
+        if (Game.register != null && Vector3.Distance(p, Game.register.transform.position) < 3.2f) return true;
+        for (int i = 0; i < Game.depots.Count; i++)
+            if (Game.depots[i] != null && Vector3.Distance(p, Game.depots[i].transform.position) < 3.8f) return true;
+        if (Game.toilets != null && Vector3.Distance(p, Game.toilets.transform.position) < 3.5f) return true;
+        return false;
     }
 
     // tutorial: seed some starting mess in the shop

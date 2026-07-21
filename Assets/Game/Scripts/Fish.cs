@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Fish : MonoBehaviour
 {
-    public enum State { Wild, Fly, Carried, InTank, Flop }
+    public enum State { Wild, Fly, Carried, InTank, Flop, Dead }
 
     public int species;
     public State state = State.Wild;
@@ -24,6 +24,7 @@ public class Fish : MonoBehaviour
     System.Action flyDone;
     float wigglePhase;
     public float flopTimer;
+    float deadTimer;
     GameObject badge;
 
     public static Fish Create(int sp, Vector3 pos, float scale = 1f)
@@ -125,6 +126,16 @@ public class Fish : MonoBehaviour
         Destroy(gameObject);
     }
 
+    public void DieFromPollution()
+    {
+        state = State.Dead;
+        scanner = null;
+        deadTimer = 9f;
+        transform.position = new Vector3(transform.position.x, 0.48f, transform.position.z);
+        transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 90f);
+        if (badge != null) badge.SetActive(false);
+    }
+
     void PickWander()
     {
         int modelIdx = species % 24;
@@ -195,9 +206,15 @@ public class Fish : MonoBehaviour
                 transform.position += new Vector3(Mathf.Sin(Time.time * 9f + wigglePhase), 0f, Mathf.Cos(Time.time * 7f + wigglePhase)) * 0.4f * dt;
                 transform.rotation = Quaternion.Euler(0f, Time.time * 200f % 360f, Mathf.Sin(Time.time * 10f) * 40f);
                 break;
+
+            case State.Dead:
+                deadTimer -= dt;
+                transform.position += Vector3.up * Mathf.Sin(Time.time * 1.6f + wigglePhase) * 0.015f * dt;
+                if (deadTimer <= 0f) Die();
+                break;
         }
 
-        if (visual != null && state != State.Fly && state != State.Flop)
+        if (visual != null && (state == State.Wild || state == State.InTank || state == State.Carried))
             visual.localRotation = Quaternion.Euler(0f, Mathf.Sin(Time.time * 6f + wigglePhase) * 10f, 0f);
 
         // hide the level badge as soon as the radar leaves us

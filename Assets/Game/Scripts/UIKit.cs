@@ -18,9 +18,77 @@ public static class UIKit
     public static readonly Color TextDark = new Color(0.32f, 0.2f, 0.1f);
     public static readonly Color PanelShade = new Color(0f, 0f, 0f, 0.25f);
 
-    static Sprite rounded, circle, star, poop, trophy, baton;
+    static Sprite rounded, circle, star, poop, trophy, baton, fish, speed, person;
 
-    public static void Clear() { rounded = null; circle = null; star = null; poop = null; trophy = null; baton = null; }
+    public static void Clear() { rounded = null; circle = null; star = null; poop = null; trophy = null; baton = null; fish = null; speed = null; person = null; }
+
+    // simple person silhouette (head circle + shoulders) for "self upgrade"
+    public static Sprite Person()
+    {
+        if (person != null) return person;
+        int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float hx = (x - 32f) / 12f, hy = (y - 44f) / 12f;
+                bool head = hx * hx + hy * hy <= 1f;
+                // shoulders: half ellipse at the bottom
+                float sx = (x - 32f) / 22f, sy = (y - 12f) / 22f;
+                bool shoulders = y < 30 && sx * sx + sy * sy <= 1f;
+                float a = head || shoulders ? 1f : 0f;
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        person = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return person;
+    }
+
+    // simple cartoon fish silhouette (body ellipse + triangle tail)
+    public static Sprite Fish()
+    {
+        if (fish != null) return fish;
+        int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float bx = (x - 34f) / 22f, by = (y - 32f) / 15f;
+                bool body = bx * bx + by * by <= 1f;
+                // tail: triangle on the left
+                bool tail = x >= 6 && x <= 20 && Mathf.Abs(y - 32f) <= (x - 6f) * 0.9f;
+                bool eye = (x - 44f) * (x - 44f) + (y - 37f) * (y - 37f) <= 9f;
+                float a = (body || tail) && !eye ? 1f : 0f;
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        fish = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return fish;
+    }
+
+    // "super speed" icon: two stacked forward chevrons (shoe-in-motion feel)
+    public static Sprite Speed()
+    {
+        if (speed != null) return speed;
+        int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float a = 0f;
+                // two chevrons ">>" pointing right
+                for (int c = 0; c < 2; c++)
+                {
+                    float cx = 18f + c * 20f;
+                    float d = Mathf.Abs(Mathf.Abs(y - 32f) - (x - cx));
+                    if (x >= cx - 22f && x <= cx && d <= 5f && Mathf.Abs(y - 32f) <= 22f) a = 1f;
+                }
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        speed = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return speed;
+    }
 
     public static Sprite Rounded()
     {
@@ -232,8 +300,11 @@ public static class UIKit
         Button b = go.AddComponent<Button>();
         b.targetGraphic = go.GetComponent<Image>();
         ColorBlock cb = b.colors;
+        cb.normalColor = Color.white;
         cb.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
         cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        cb.disabledColor = Color.white;   // disabled = single flat tone (no 2-tone)
+        cb.fadeDuration = 0.05f;
         b.colors = cb;
         Label(go.transform, label, fontSize, Color.white, TextAnchor.MiddleCenter, true);
         b.onClick.AddListener(delegate { Sfx.Play(Snd.Tick, 0.3f); if (onClick != null) onClick(); });

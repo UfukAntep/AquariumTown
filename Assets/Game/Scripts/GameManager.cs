@@ -10,14 +10,15 @@ public class GameManager : MonoBehaviour
     public int unlockedCount = 1;             // species 0..unlockedCount-1 are unlocked; Level == unlockedCount
     public int[] staffCounts = new int[StaffInfo.RoleCount];
     public int[] staffLevel = new int[StaffInfo.RoleCount];
+    public int staffRadarLevel;
     // New hires have already paid today's salary up-front.
     public int[] staffHiredToday = new int[StaffInfo.RoleCount];
-    public int[] shopUpg = new int[6]; // strengthening, alarm, hygiene, efficiency, management room, camera desk
+    public int[] shopUpg = new int[9]; // +7 management room expansion, +8 marketing desk
     public int[] tankLevel = new int[SpeciesInfo.Count];
     public bool[] decorOwned = new bool[DecorInfo.Count];
     public bool[] zoneOpen = new bool[5]; // shop expansion areas (zone 0 free)
-    public bool[] techOwned = new bool[9];   // 6 generator, 7 cameras, 8 golden-fish tracker
-    public bool[] techEnabled = new bool[9];
+    public bool[] techOwned = new bool[10];   // 6 generator, 7 shop cameras, 8 golden-fish tracker, 9 worker camera
+    public bool[] techEnabled = new bool[10];
     public int generatorLevel;
     public int cameraLevel;
     public bool[] playerWeaponsOwned = new bool[3];
@@ -37,6 +38,8 @@ public class GameManager : MonoBehaviour
     public int totalCustomers;
     public int totalFishSold;
     public long totalRevenue;
+    public float marketingVisitorBonus;
+    public string activeMarketingName = "";
 
     // day cycle
     public int dayNumber = 1;
@@ -48,10 +51,10 @@ public class GameManager : MonoBehaviour
     public bool starterBackAreaOpen; // small rear section of the starting shop
     public bool level5QuakeTutorialDone;
     public bool shopOpen = true;
-    public int autoOpenTime = 8;
-    public int autoCloseTime = 22;
+    public float autoOpenTime = 8f;
+    public float autoCloseTime = 22f;
 
-    public const int ToiletAreaCost = 3000;
+    public const int ToiletAreaCost = 1600;
     public const int StarterBackAreaCost = 1800;
     public const int StarterBackAreaLevel = 4;
     public const int ToiletDemandLevel = 10;   // customers start demanding toilets here
@@ -75,11 +78,16 @@ public class GameManager : MonoBehaviour
     public float SwimSpeed { get { return 4.5f * Mathf.Pow(1.10f, upg[(int)Upg.SwimSpeed]); } }
     public float CatchTimeMult { get { return Mathf.Pow(0.88f, upg[(int)Upg.RadarSpeed]); } }
     public float RadarRange { get { return 3.5f + 0.5f * upg[(int)Upg.RadarRange]; } }
+    public float RadarHalfAngle { get { return 30f + 7f * upg[(int)Upg.RadarArea]; } }
+    public int TrashCapacity { get { return 5 + upg[(int)Upg.TrashCapacity]; } }
+    public float StaffRadarRange { get { return 80f + 25f * staffRadarLevel; } }
     public float TipChance { get { return 0.06f * upg[(int)Upg.TipChance]; } }
     public float CustSpeedMult { get { return Mathf.Pow(1.10f, upg[(int)Upg.CustSpeed]); } }
     public float ExtraCashMult { get { return 1f + 0.10f * upg[(int)Upg.ExtraCash]; } }
     public bool SprintUnlocked { get { return upg[(int)Upg.Sprint] > 0; } }
     public float SprintMultiplier { get { return SprintUnlocked ? 1.45f + 0.12f * (upg[(int)Upg.Sprint] - 1) : 1f; } }
+    public int DepotCapacityBonus { get { return 0; } }
+    public int DepotCount { get { return HasDepot() ? 1 + Mathf.Clamp(shopUpg[6], 0, 5) : 0; } }
     public float SaleFactor { get { return Mathf.Lerp(0.4f, 1f, Satisfaction / 100f); } }
     public float PoopChanceMult
     {
@@ -122,6 +130,8 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         Game.gm = this;
+        if (upg == null || upg.Length < UpgInfo.Count) System.Array.Resize(ref upg, UpgInfo.Count);
+        if (shopUpg == null || shopUpg.Length < 9) System.Array.Resize(ref shopUpg, 9);
         if (techOwned == null || techOwned.Length < TechCosts.Length) Array.Resize(ref techOwned, TechCosts.Length);
         if (techEnabled == null || techEnabled.Length < TechCosts.Length) Array.Resize(ref techEnabled, TechCosts.Length);
         for (int i = 0; i < tankLevel.Length; i++) tankLevel[i] = 1;
@@ -148,13 +158,24 @@ public class GameManager : MonoBehaviour
     public int ZoneCost(int b) { return 500 * (int)Mathf.Pow(4, b); } // 2000, 8000, 32K, 128K
 
     // ---------- technology ----------
-    public static readonly int[] TechCosts = { 600, 4000, 40000, 2500, 1500, 3000, 1800, 2500, 3500 };
+    public static readonly int[] TechCosts = { 600, 4000, 40000, 500, 1500, 3000, 1800, 2500, 3500, 5000 };
 
     public bool TryBuyTech(int i)
     {
         if (i == 6) return TryUpgradeGenerator();
         if (i == 7) return TryUpgradeCameras();
         if (i < 0 || i >= techOwned.Length || techOwned[i]) return false;
+        if (i == 9 && (shopUpg.Length <= 5 || shopUpg[5] <= 0))
+        {
+            if (Game.ui != null) Game.ui.Toast("Personel kamerasi icin Kamera Izleme Masasi gerekli.", 4f);
+            return false;
+        }
+        // Otomatik Dukkan (5) needs Uzaktan Kontrol (3) first
+        if (i == 5 && !techOwned[3])
+        {
+            if (Game.ui != null) Game.ui.Toast("Otomatik Dukkan icin once Uzaktan Kontrol gerekli.", 4f);
+            return false;
+        }
         if (!TrySpend(TechCosts[i])) return false;
         techOwned[i] = true;
         techEnabled[i] = true;
@@ -257,6 +278,18 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public int DailyPopularity
+    {
+        get
+        {
+            // Estimated maximum visitors between 06:00 and 02:00 when the
+            // shop remains open. Growth is steady, but deliberately bounded.
+            float brand = Mathf.Sqrt(Mathf.Max(0f, CompanyMarketValue) / 1000f) * 2f;
+            float basePopularity = 90f + Level * 6f + Satisfaction * 0.4f + brand;
+            return Mathf.Clamp(Mathf.RoundToInt(basePopularity * (1f + Mathf.Max(0f, marketingVisitorBonus))), 100, 900);
+        }
+    }
+
     public bool salariesPaid;
 
     public int ToiletDaily()
@@ -267,22 +300,40 @@ public class GameManager : MonoBehaviour
 
     public int ShopUpgradeCost(int index)
     {
-        int[] bases = { 900, 700, 650, 600, 1400, 2200 };
+        int[] bases = { 900, 700, 650, 600, 800, 2200, 850, 2000, 2600 };
         if (index < 0 || index >= shopUpg.Length) return int.MaxValue;
         return bases[index] * (shopUpg[index] + 1);
     }
 
     public bool TryBuyShopUpgrade(int index)
     {
-        if (index < 0 || index >= shopUpg.Length || shopUpg[index] >= 5) return false;
+        int maxLevel = index >= 7 ? 1 : 5;
+        if (index < 0 || index >= shopUpg.Length || shopUpg[index] >= maxLevel) return false;
         if (index == 5 && shopUpg[4] <= 0)
         {
             if (Game.ui != null) Game.ui.Toast("Once Yonetim Odasi gelistirmesini almalisin.", 4f);
             return false;
         }
+        if (index == 6 && Game.depot == null)
+        {
+            if (Game.ui != null) Game.ui.Toast("Once depo alanini satin almalisin.", 4f);
+            return false;
+        }
+        if (index == 7 && shopUpg[4] <= 0)
+        {
+            if (Game.ui != null) Game.ui.Toast("Once Yonetim Odasi gelistirmesini almalisin.", 4f);
+            return false;
+        }
+        // marketing desk (8) no longer needs the office expansion — buy directly
         if (!TrySpend(ShopUpgradeCost(index))) return false;
         shopUpg[index]++;
-        if (index == 4 || index == 5) ManagementRoomSystem.Refresh();
+        if (index == 6 && Game.world != null)
+        {
+            int newIndex = Game.depots.Count;
+            Depot d = Depot.Create(GameBootstrap.DepotPos(newIndex), Game.world, newIndex);
+            d.LoadSaved();
+        }
+        if (index == 4 || index == 5 || index == 7 || index == 8) ManagementRoomSystem.Refresh();
         Sfx.Play(Snd.Buy, 0.8f);
         return true;
     }
@@ -317,6 +368,8 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "H" + d + "_rc", dayReviewCount);
         PlayerPrefs.SetInt(P + "H" + d + "_rs", dayStarSum);
         dayNumber++;
+        marketingVisitorBonus = 0f;
+        activeMarketingName = "";
         dayCustomers = 0; dayFishSold = 0; dayIncome = 0; dayExpense = 0;
         dayReviewCount = 0; dayStarSum = 0;
         salariesPaid = false;
@@ -446,7 +499,24 @@ public class GameManager : MonoBehaviour
         return Mathf.RoundToInt(StaffInfo.Salary[role] * (1f + 0.15f * (staffLevel[role] - 1)));
     }
 
+    public int StaffHireCost(int role)
+    {
+        int owned = role >= 0 && role < staffCounts.Length ? staffCounts[role] : 0;
+        // The first hire is the cheapest. Recruiting and onboarding each
+        // additional worker becomes progressively more expensive.
+        return Mathf.RoundToInt(StaffSalary(role) * (1f + 0.30f * owned + 0.08f * owned * owned));
+    }
+
     public int StaffTrainingCost(int role) { return StaffInfo.Salary[role] * (staffLevel[role] + 1) * 4; }
+    public int StaffRadarUpgradeCost { get { return Mathf.RoundToInt(500f * Mathf.Pow(2f, staffRadarLevel)); } }
+    public bool TryUpgradeStaffRadar()
+    {
+        if (staffRadarLevel >= 5 || !TrySpend(StaffRadarUpgradeCost)) return false;
+        staffRadarLevel++;
+        Sfx.Play(Snd.Buy);
+        Save();
+        return true;
+    }
     public float StaffSpeedMultiplier(int role) { return 0.85f + 0.2f * (staffLevel[role] - 1); }
     public float StaffWorkTimeMultiplier(int role) { return 1f / (1f + 0.18f * (staffLevel[role] - 1)); }
     public int StaffCapacity(int role)
@@ -493,7 +563,7 @@ public class GameManager : MonoBehaviour
         if (role == 2 && !HasDepot()) return false;
         if (role == 5 && toiletCount == 0) return false;
         if (role == 8 && generatorLevel <= 0) return false;
-        int todaySalary = StaffSalary(role);
+        int todaySalary = StaffHireCost(role);
         if (!TrySpend(todaySalary))
         {
             if (Game.ui != null) Game.ui.Toast("Bugunun maasi icin yeterli paran yok: $" + B.Money(todaySalary));
@@ -509,7 +579,7 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.SetInt(P + "FirstStaffHireInfoV3", 1);
             PlayerPrefs.Save();
             if (Game.ui != null) Game.ui.ShowPausedInfo("CALISAN VARDIYASI",
-                "Calisanlar her sabah 08:00'de ise gelir ve aksam 20:00'de evlerine gider.\n\n" +
+                "Calisanlar her sabah 08:00'de ise gelir ve aksam 21:00'de evlerine gider.\n\n" +
                 "Ise alirken bugunun maasi hemen odenir; sonraki maaslar gun sonunda kesilir.");
         }
         Save();
@@ -546,7 +616,7 @@ public class GameManager : MonoBehaviour
         return total;
     }
 
-    public bool StaffOnShift { get { return clockMinutes >= 8f * 60f && clockMinutes < 20f * 60f; } }
+    public bool StaffOnShift { get { return clockMinutes >= 8f * 60f && clockMinutes < 21f * 60f; } }
 
     public int JetskiUpgradeCost() { return 900 + jetskiLevel * 650; }
     public int RampUpgradeCost() { return 300 + rampLevel * 350; }
@@ -602,7 +672,7 @@ public class GameManager : MonoBehaviour
         GameBootstrap.GoToMenu();
     }
 
-    public bool HasDepot() { return Game.depot != null; }
+    public bool HasDepot() { return Game.depots != null && Game.depots.Count > 0; }
 
     public bool NeedsToilet
     {
@@ -662,6 +732,7 @@ public class GameManager : MonoBehaviour
         prevClock = clockMinutes;
         clockMinutes += Time.deltaTime;
         if (clockMinutes >= 1440f) clockMinutes -= 1440f;
+        Sfx.SetNightMood(clockMinutes >= 21f * 60f || clockMinutes < 6f * 60f);
         CheckBankruptcy();
 
         // Only the first night teaches the danger boundary and desk flow.
@@ -676,13 +747,19 @@ public class GameManager : MonoBehaviour
                 delegate { if (Game.ui != null) Game.ui.BeginFirstNightDeskGuide(); });
         }
 
-        bool crossedStaffDeparture = prevClock < 20f * 60f && clockMinutes >= 20f * 60f;
+        bool crossedStaffDeparture = prevClock < 21f * 60f && clockMinutes >= 21f * 60f;
+        if ((crossedStaffDeparture || clockMinutes >= 21f * 60f || clockMinutes < 6f * 60f) && marketingVisitorBonus > 0f)
+        {
+            marketingVisitorBonus = 0f;
+            activeMarketingName = "";
+            if (Game.ui != null) Game.ui.Toast("Pazarlama kampanyasi mesaiyle sona erdi.", 3f);
+        }
         if (crossedStaffDeparture && TotalStaffCount() > 0 && PlayerPrefs.GetInt(P + "FirstStaffDepartureInfoV3", 0) == 0)
         {
             PlayerPrefs.SetInt(P + "FirstStaffDepartureInfoV3", 1);
             PlayerPrefs.Save();
             if (Game.ui != null) Game.ui.ShowPausedInfo("CALISANLAR PAYDOS ETTI",
-                "Saat 20:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.\n\n" +
+                "Saat 21:00 oldu; calisanlar evlerine gidiyor ve her sabah 08:00'de yeniden geliyor.\n\n" +
                 "Saat 22:00'dan sonra deniz tehlikelidir. Islerini 22:00'dan once bitir ve gunu bitirmeyi unutma.");
         }
 
@@ -702,17 +779,17 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Midnight auto-end: the same real summary flow opens at 00:00.
-        if (Game.pc != null && Game.player != null && CrossedMidnight())
+        // The same real summary flow opens automatically at 02:00.
+        if (Game.pc != null && Game.player != null && CrossedAutoDayEnd())
             Game.pc.OpenDaySummary(true);
 
         saveTimer += Time.deltaTime;
         if (saveTimer > 10f) { saveTimer = 0f; Save(); }
     }
 
-    bool CrossedMidnight()
+    bool CrossedAutoDayEnd()
     {
-        return prevClock > clockMinutes;
+        return prevClock < 2f * 60f && clockMinutes >= 2f * 60f;
     }
 
     public string ClockText()
@@ -761,13 +838,16 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.SetInt(P + "TotalCustomers", totalCustomers);
         PlayerPrefs.SetInt(P + "TotalFishSold", totalFishSold);
         PlayerPrefs.SetString(P + "TotalRevenue", totalRevenue.ToString());
+        PlayerPrefs.SetFloat(P + "MarketingBonus", marketingVisitorBonus);
+        PlayerPrefs.SetString(P + "MarketingName", activeMarketingName ?? "");
         PlayerPrefs.SetInt(P + "Open", shopOpen ? 1 : 0);
-        PlayerPrefs.SetInt(P + "AutoOpen", autoOpenTime);
-        PlayerPrefs.SetInt(P + "AutoClose", autoCloseTime);
+        PlayerPrefs.SetFloat(P + "AutoOpenF", autoOpenTime);
+        PlayerPrefs.SetFloat(P + "AutoCloseF", autoCloseTime);
         PlayerPrefs.SetInt(P + "JetskiLevel", jetskiLevel);
         PlayerPrefs.SetInt(P + "RampLevel", rampLevel);
         PlayerPrefs.SetInt(P + "GeneratorLevel", generatorLevel);
         PlayerPrefs.SetInt(P + "CameraLevel", cameraLevel);
+        PlayerPrefs.SetInt(P + "StaffRadarLevel", staffRadarLevel);
         PlayerPrefs.SetInt(P + "ActivePlayerWeapon", activePlayerWeapon);
         PlayerPrefs.SetInt(P + "ActiveSecurityWeapon", activeSecurityWeapon);
         for (int i = 0; i < 3; i++)
@@ -803,10 +883,11 @@ public class GameManager : MonoBehaviour
             Tank t = Game.TankOf(i);
             if (t != null) PlayerPrefs.SetInt(P + "Cnt" + i, t.Count);
         }
-        PlayerPrefs.SetInt(P + "HasDepot", Game.depot != null ? 1 : 0);
-        if (Game.depot != null)
-            for (int i = 0; i < SpeciesInfo.Count; i++)
-                if (Game.depot.counts[i] > 0) PlayerPrefs.SetInt(P + "Dep" + i, Game.depot.counts[i]);
+        PlayerPrefs.SetInt(P + "HasDepot", HasDepot() ? 1 : 0);
+        for (int d = 0; d < Game.depots.Count; d++)
+            if (Game.depots[d] != null)
+                for (int i = 0; i < SpeciesInfo.Count; i++)
+                    PlayerPrefs.SetInt(P + "Dep" + d + "_" + i, Game.depots[d].counts[i]);
         PlayerPrefs.SetString(P + "LastSave", DateTime.UtcNow.Ticks.ToString());
         PlayerPrefs.Save();
     }
@@ -827,12 +908,13 @@ public class GameManager : MonoBehaviour
         reviewCount = PlayerPrefs.GetInt(P + "RevCount", 0);
         reviewStarSum = PlayerPrefs.GetInt(P + "RevSum", 0);
         shopOpen = PlayerPrefs.GetInt(P + "Open", 1) == 1;
-        autoOpenTime = PlayerPrefs.GetInt(P + "AutoOpen", 8);
-        autoCloseTime = PlayerPrefs.GetInt(P + "AutoClose", 22);
+        autoOpenTime = PlayerPrefs.GetFloat(P + "AutoOpenF", PlayerPrefs.GetInt(P + "AutoOpen", 8));
+        autoCloseTime = PlayerPrefs.GetFloat(P + "AutoCloseF", PlayerPrefs.GetInt(P + "AutoClose", 22));
         jetskiLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "JetskiLevel", 1), 1, 5);
         rampLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "RampLevel", 1), 1, 5);
         generatorLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "GeneratorLevel", PlayerPrefs.GetInt(P + "Tech6", 0)), 0, 5);
         cameraLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "CameraLevel", PlayerPrefs.GetInt(P + "Tech7", 0)), 0, 5);
+        staffRadarLevel = Mathf.Clamp(PlayerPrefs.GetInt(P + "StaffRadarLevel", 0), 0, 5);
         activePlayerWeapon = Mathf.Clamp(PlayerPrefs.GetInt(P + "ActivePlayerWeapon", -1), -1, 2);
         activeSecurityWeapon = Mathf.Clamp(PlayerPrefs.GetInt(P + "ActiveSecurityWeapon", -1), -1, 2);
         for (int i = 0; i < 3; i++)
@@ -867,6 +949,8 @@ public class GameManager : MonoBehaviour
         long parsedRevenue;
         if (!long.TryParse(PlayerPrefs.GetString(P + "TotalRevenue", ""), out parsedRevenue)) parsedRevenue = -1;
         totalRevenue = parsedRevenue;
+        marketingVisitorBonus = Mathf.Max(0f, PlayerPrefs.GetFloat(P + "MarketingBonus", 0f));
+        activeMarketingName = PlayerPrefs.GetString(P + "MarketingName", "");
         if (totalCustomers < 0 || totalRevenue < 0 || totalFishSold < 0)
         {
             int historicalCustomers = 0;
@@ -890,7 +974,12 @@ public class GameManager : MonoBehaviour
 
     public bool LoadHasDepot() { return PlayerPrefs.GetInt(P + "HasDepot", 0) == 1; }
     public int LoadTankCount(int sp) { return PlayerPrefs.GetInt(P + "Cnt" + sp, 0); }
-    public int LoadDepotCount(int i) { return PlayerPrefs.GetInt(P + "Dep" + i, 0); }
+    public int LoadDepotCount(int depotIndex, int i)
+    {
+        string key = P + "Dep" + depotIndex + "_" + i;
+        if (PlayerPrefs.HasKey(key)) return PlayerPrefs.GetInt(key, 0);
+        return depotIndex == 0 ? PlayerPrefs.GetInt(P + "Dep" + i, 0) : 0;
+    }
 
     public int ComputeOfflineEarnings()
     {

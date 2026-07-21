@@ -2,23 +2,28 @@ using UnityEngine;
 
 public class Depot : MonoBehaviour
 {
-    public const int Cap = 60;
+    public const int BaseCap = 90;
     public int[] counts = new int[SpeciesInfo.Count];
     TextMesh text;
     Transform crateRoot;
     int crateCount;
+    public int depotIndex;
 
     public int Total { get { int n = 0; for (int i = 0; i < counts.Length; i++) n += counts[i]; return n; } }
-    public bool HasSpace { get { return Total < Cap; } }
+    public int Capacity { get { return Game.gm != null ? BaseCap + Game.gm.DepotCapacityBonus : BaseCap; } }
+    public bool HasSpace { get { return Total < Capacity; } }
+    public bool PlayerNear(Vector3 position) { return Vector3.Distance(position, transform.position) < 4.5f; }
 
-    public static Depot Create(Vector3 pos, Transform parent)
+    public static Depot Create(Vector3 pos, Transform parent, int index = 0)
     {
         GameObject go = new GameObject("Depot");
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.position = pos;
         Depot d = go.AddComponent<Depot>();
+        d.depotIndex = index;
         d.Build();
-        Game.depot = d;
+        Game.depots.Add(d);
+        if (Game.depot == null || index == 0) Game.depot = d;
         return d;
     }
 
@@ -30,7 +35,7 @@ public class Depot : MonoBehaviour
         B.Prim(PrimitiveType.Cube, "Post1", transform, new Vector3(-2.5f, 1.2f, -2f), Vector3.zero, new Vector3(0.3f, 2.4f, 0.3f), woodD);
         B.Prim(PrimitiveType.Cube, "Post2", transform, new Vector3(2.5f, 1.2f, -2f), Vector3.zero, new Vector3(0.3f, 2.4f, 0.3f), woodD);
         B.Prim(PrimitiveType.Cube, "Roof", transform, new Vector3(0f, 2.5f, -1f), new Vector3(12f, 0f, 0f), new Vector3(5.8f, 0.2f, 3.2f), MatLib.Get(new Color(0.3f, 0.65f, 0.85f)));
-        TextMesh depotTitle = B.Text3D("DEPO", transform, new Vector3(0f, 4.15f, 0f), 0.18f, new Color(1f, 0.92f, 0.3f));
+        TextMesh depotTitle = B.Text3D("DEPO " + (depotIndex + 1), transform, new Vector3(0f, 4.15f, 0f), 0.18f, new Color(1f, 0.92f, 0.3f));
         depotTitle.fontStyle = FontStyle.Bold;
         text = B.Text3D("", transform, new Vector3(0f, 3.25f, 0f), 0.125f, Color.white);
 
@@ -78,9 +83,23 @@ public class Depot : MonoBehaviour
         return false;
     }
 
+    public bool TryTakeAny(out int species)
+    {
+        for (int i = 0; i < counts.Length; i++)
+        {
+            if (counts[i] <= 0) continue;
+            counts[i]--;
+            species = i;
+            UpdateVisual();
+            return true;
+        }
+        species = -1;
+        return false;
+    }
+
     void UpdateVisual()
     {
-        if (text != null) text.text = Total + "/" + Cap;
+        if (text != null) text.text = Total + "/" + Capacity;
         int want = Mathf.Clamp(Mathf.CeilToInt(Total / 5f), 0, 12);
         Material crate = MatLib.Get(new Color(0.85f, 0.65f, 0.35f));
         while (crateCount < want)
@@ -103,7 +122,13 @@ public class Depot : MonoBehaviour
     public void LoadSaved()
     {
         for (int i = 0; i < counts.Length; i++)
-            counts[i] = Game.gm.LoadDepotCount(i);
+            counts[i] = Game.gm.LoadDepotCount(depotIndex, i);
         UpdateVisual();
+    }
+
+    void OnDestroy()
+    {
+        Game.depots.Remove(this);
+        if (Game.depot == this) Game.depot = Game.depots.Count > 0 ? Game.depots[0] : null;
     }
 }

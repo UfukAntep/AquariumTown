@@ -6,7 +6,7 @@ public enum Snd
     Catch, Drop, Cash, Buy, Collect, Tick, Laugh, Alarm, Crash, Splash, Punch,
     Spend, LevelUp, Thief, Quake, Throw, GlassBreak, Repair, TrashPickup,
     TrashDump, ShopToggle, Shark, MoneyPickup, PowerOut, PowerOn, Generator,
-    SchoolBus, Children, Storm
+    SchoolBus, Children, Storm, Toilet, Fart, Water, Terrorist, BombTick, Explosion
 }
 
 // Lightweight procedural audio: the game remains self-contained and every
@@ -17,6 +17,7 @@ public static class Sfx
     static Dictionary<Snd, AudioClip> clips = new Dictionary<Snd, AudioClip>();
     static AudioClip calmMusic, dangerMusic;
     static bool danger;
+    static bool nightMood;
     static float dangerUntil = -1f;
     static float lastSpend = -10f;
     public static bool Muted;
@@ -25,7 +26,7 @@ public static class Sfx
     {
         src = null; music = null; clips.Clear();
         calmMusic = null; dangerMusic = null;
-        danger = false; dangerUntil = -1f; Muted = false;
+        danger = false; nightMood = false; dangerUntil = -1f; Muted = false;
         GameAssets.Clear();
     }
 
@@ -85,6 +86,13 @@ public static class Sfx
         RefreshMusic();
     }
 
+    public static void SetNightMood(bool enabled)
+    {
+        if (nightMood == enabled) return;
+        nightMood = enabled;
+        RefreshMusic();
+    }
+
     internal static void Tick()
     {
         if (danger && dangerUntil > 0f && Time.unscaledTime >= dangerUntil) EndDanger();
@@ -94,11 +102,13 @@ public static class Sfx
     {
         if (music == null) return;
         AudioClip wanted = danger ? dangerMusic : calmMusic;
-        if (music.clip == wanted && music.isPlaying) return;
-        music.Stop();
-        music.clip = wanted;
-        music.volume = danger ? 0.24f : 0.16f;
-        music.Play();
+        float wantedVolume = danger ? 0.24f : (nightMood ? 0.11f : 0.16f);
+        float wantedPitch = danger ? 1f : (nightMood ? 0.90f : 1f);
+        bool changeClip = music.clip != wanted;
+        if (changeClip) { music.Stop(); music.clip = wanted; }
+        music.volume = wantedVolume;
+        music.pitch = wantedPitch;
+        if (changeClip || !music.isPlaying) music.Play();
     }
 
     static AudioClip Make(Snd s)
@@ -134,6 +144,12 @@ public static class Sfx
             case Snd.SchoolBus: return Tone(new float[] { 392f, 392f, 523f, 523f }, 0.16f);
             case Snd.Children: return Tone(new float[] { 880f, 1046f, 988f, 1175f, 1046f, 1318f }, 0.09f);
             case Snd.Storm: return Noise(1.8f, 0.72f, 60f);
+            case Snd.Toilet: return Tone(new float[] { 170f, 135f, 105f }, 0.12f);
+            case Snd.Fart: return Noise(0.5f, 0.52f, 85f);
+            case Snd.Water: return Noise(0.8f, 0.22f, 1100f);
+            case Snd.Terrorist: return Tone(new float[] { 180f, 135f, 180f, 95f }, 0.12f);
+            case Snd.BombTick: return Tone(new float[] { 1250f }, 0.045f);
+            case Snd.Explosion: return Noise(1.35f, 0.95f, 55f);
             default: return Tone(new float[] { 784f }, 0.06f);
         }
     }

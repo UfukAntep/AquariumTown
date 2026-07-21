@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 public class GameBootstrap : MonoBehaviour
 {
+    public static Renderer SeaSurfaceRenderer;
     static bool booted;
     static bool hooked;
     static GameBootstrap instance;
@@ -22,7 +23,7 @@ public class GameBootstrap : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
-        booted = false; hooked = false; instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null; powerOutage = false;
+        booted = false; hooked = false; instance = null; sun = null; skyMaterial = null; gateBarrier = null; gateNameText = null; powerOutage = false; SeaSurfaceRenderer = null;
         displayFish = new List<Fish>();
         Game.Clear();
         MatLib.Clear();
@@ -147,33 +148,17 @@ public class GameBootstrap : MonoBehaviour
     // from the safe upper row. Later groups use the regular 5x2 grid.
     public static Vector3 PlotPos(int i)
     {
-        if (i < 10)
-        {
-            switch (i)
-            {
-                case 0: return new Vector3(-8f, 0f, 12f);  // first: old Golden Crab plot
-                case 1: return new Vector3(-8f, 0f, 1f);   // second: directly below
-                case 2: return new Vector3(-19f, 0f, 1f);  // then left
-                case 3: return new Vector3(-19f, 0f, 12f); // and up
-                case 4: return new Vector3(-30f, 0f, 12f);
-                case 5: return new Vector3(-30f, 0f, 1f);
-                case 6: return new Vector3(-41f, 0f, 12f); // skip toilet's lower row
-                case 7: return new Vector3(-52f, 0f, 12f);
-                case 8: return new Vector3(-41f, 0f, 23f);
-                default: return new Vector3(-52f, 0f, 23f);
-            }
-        }
-
-        int band = i / 10;
-        int k = i % 10;
-        int col = k / 2;
-        int row = k % 2;                       // 0 = top, 1 = bottom
-        float x = ColX0 - col * Grid;
-        float z = RowZ0 + band * (2f * Grid) + (row == 0 ? Grid : 0f);
-        return new Vector3(x, 0f, z);
+        // A single continuous five-column snake. This keeps the management
+        // office row empty and prevents #11, #21, #31... from jumping to the
+        // opposite end of a future expansion.
+        int row = i / Cols;
+        int col = i % Cols;
+        if ((row & 1) == 1) col = Cols - 1 - col;
+        return new Vector3(ColX0 - col * Grid, 0f, RowZ0 + row * Grid);
     }
 
     public static int ZoneOf(int sp) { return sp / 20; }
+    public static Vector3 DepotPos(int index) { return new Vector3(18f, 0f, 4f + index * 13f); }
 
     // expansion zone z-slabs (zone z = 2 bands, x -58..-2)
     public static float ZoneZ0(int z) { return z == 0 ? -4f : 6f + 44f * z; }
@@ -236,6 +221,7 @@ public class GameBootstrap : MonoBehaviour
         Sea.Create(SeaRect, transform);
         CashRegister.Create(new Vector3(1f, 0f, 20f), transform);
         ManagerDesk.Create(new Vector3(2f, 0f, 5f), transform);
+        BuildMechanicsDatabaseDesk();
         ManagementRoomSystem.Refresh();
         if (gm.generatorLevel > 0) GeneratorUnit.Ensure();
         SecurityCameraSystem.Refresh();
@@ -300,16 +286,16 @@ public class GameBootstrap : MonoBehaviour
 
         if (gm.LoadHasDepot())
         {
-            Depot.Create(new Vector3(14f, 0f, 4f), transform);
-            Game.depot.LoadSaved();
+            int savedDepotCount = 1 + Mathf.Clamp(gm.shopUpg[6], 0, 5);
+            for (int d = 0; d < savedDepotCount; d++) Depot.Create(DepotPos(d), transform, d).LoadSaved();
         }
         else
         {
-            BuyZone.CreateGeneric("DEPO", GameManager.DepotCost, new Vector3(14f, 0f, 4f), new Color(0.9f, 0.7f, 0.3f),
+            BuyZone.CreateGeneric("DEPO", GameManager.DepotCost, DepotPos(0), new Color(0.9f, 0.7f, 0.3f),
                 delegate () { return Game.gm.Level >= 3; },
                 delegate
                 {
-                    Depot.Create(new Vector3(14f, 0f, 4f), Game.world);
+                    Depot.Create(DepotPos(0), Game.world, 0);
                     Game.ui.Toast("Depo acildi! Her turu buraya birakabilirsin.");
                 });
         }
@@ -641,7 +627,8 @@ public class GameBootstrap : MonoBehaviour
     // ---------- environment ----------
     void BuildGround()
     {
-        B.Prim(PrimitiveType.Plane, "Ground", transform, new Vector3(27f, -0.02f, 22f), Vector3.zero, new Vector3(25f, 1f, 20f), MatLib.Beach(), true);
+        // big ground COLLIDER covering the whole (now-taller) map so nothing falls through
+        B.Prim(PrimitiveType.Plane, "Ground", transform, new Vector3(40f, -0.02f, 65f), Vector3.zero, new Vector3(24f, 1f, 28f), MatLib.Beach(), true);
 
         // shop floor (paintable) spans the full expandable area: x -58..8, z -4..135
         B.Prim(PrimitiveType.Cube, "ShopFloor", transform, new Vector3(-25f, 0.01f, (MapTop - 4f) * 0.5f), Vector3.zero, new Vector3(66f, 0.02f, MapTop + 4f), MatLib.Floor());
@@ -654,8 +641,9 @@ public class GameBootstrap : MonoBehaviour
         BuildCuteShoreDetails();
         // DEEP water: transparent surface above, dark seabed far below, the
         // character sinks into it while swimming (real depth feel)
-        B.Prim(PrimitiveType.Plane, "SeaSurf", transform, new Vector3(SeaRect.center.x, 0.55f, SeaRect.center.y), Vector3.zero,
+        GameObject seaSurface = B.Prim(PrimitiveType.Plane, "SeaSurf", transform, new Vector3(SeaRect.center.x, 0.55f, SeaRect.center.y), Vector3.zero,
             new Vector3(SeaRect.width / 10f, 1f, SeaRect.height / 10f), CuteWater());
+        SeaSurfaceRenderer = seaSurface != null ? seaSurface.GetComponent<Renderer>() : null;
         // bright turquoise seabed keeps the whole sea CUTE, not dark
         B.Prim(PrimitiveType.Cube, "SeaBed", transform, new Vector3(SeaRect.center.x, -1.6f, SeaRect.center.y), Vector3.zero,
             new Vector3(SeaRect.width, 0.05f, SeaRect.height), MatLib.Get(new Color(0.55f, 0.9f, 1f)));
@@ -829,6 +817,21 @@ public class GameBootstrap : MonoBehaviour
             else
                 B.Prim(PrimitiveType.Sphere, "Rock", transform, p, Vector3.zero, new Vector3(Random.Range(0.8f, 1.6f), 0.5f, Random.Range(0.8f, 1.4f)), rock);
         }
+    }
+
+    // MEKANIK VERITABANI desk — always present from the start, sits in the
+    // management room (where the camera desk used to be).
+    void BuildMechanicsDatabaseDesk()
+    {
+        Material dbDesk = MatLib.Get(new Color(0.3f, 0.24f, 0.42f));
+        GameObject database = new GameObject("MechanicsDatabaseDesk");
+        database.transform.SetParent(transform, false);
+        database.transform.localPosition = new Vector3(-1.35f, 0f, -1.45f); // where the camera desk used to be
+        B.Prim(PrimitiveType.Cube, "DbDesk", database.transform, new Vector3(0f, 0.72f, 0f), Vector3.zero, new Vector3(2.8f, 1.25f, 1.1f), dbDesk, true);
+        B.Prim(PrimitiveType.Cube, "DbScreen", database.transform, new Vector3(0f, 1.6f, 0.05f), Vector3.zero, new Vector3(1.5f, 0.9f, 0.08f), MatLib.Get(new Color(0.35f, 0.2f, 0.6f)));
+        B.Prim(PrimitiveType.Cube, "DbGlow", database.transform, new Vector3(0f, 1.6f, -0.01f), Vector3.zero, new Vector3(1.3f, 0.72f, 0.05f), MatLib.Get(new Color(0.55f, 0.35f, 0.95f)));
+        B.Text3D("MEKANIK VERITABANI", database.transform, new Vector3(0f, 2.55f, 0f), 0.06f, new Color(0.85f, 0.7f, 1f));
+        Game.mechanicsDesk = database.AddComponent<MechanicsDeskUnit>();
     }
 
     void BuildSun()
